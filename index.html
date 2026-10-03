@@ -290,6 +290,25 @@ button{cursor:pointer}
 @media (max-width:760px){ #volpop{height:38px} }
 #vol,#vol2{accent-color:var(--hud);width:120px;cursor:pointer}
 .vol-row{display:flex;align-items:center;gap:12px;font-size:14px}
+/* ---------- the tour: a spotlight that moves from feature to feature, with a caption card ---------- */
+#tour{position:fixed;inset:0;z-index:50}
+#tour-hole{position:fixed;border-radius:14px;border:2px solid var(--hud);box-shadow:0 0 0 200vmax rgba(2,6,12,.7),0 0 22px var(--hud),inset 0 0 14px rgba(92,200,255,.35);
+  transition:left .38s ease,top .38s ease,width .38s ease,height .38s ease,opacity .3s;pointer-events:none}
+#tour-hole.none{width:0!important;height:0!important;left:50%!important;top:50%!important;border-color:transparent;box-shadow:0 0 0 200vmax rgba(2,6,12,.7)}
+#tour-card{position:fixed;width:min(340px,calc(100vw - 32px));background:rgba(7,12,20,.95);border:2px solid var(--hud);border-radius:18px;padding:16px 18px 14px;color:var(--ink);
+  box-shadow:0 0 18px rgba(92,200,255,.45),inset 0 0 12px rgba(92,200,255,.15);display:flex;flex-direction:column;gap:9px;transition:left .38s ease,top .38s ease;animation:rise .35s ease both}
+#tour-card .tc-n{font-size:10px;letter-spacing:.2em;font-weight:700;color:var(--amber);text-transform:uppercase}
+#tour-card h3{margin:0;font-size:19px;line-height:1.2;color:#fff;letter-spacing:.03em;text-shadow:0 0 12px rgba(92,200,255,.6);text-wrap:balance}
+#tour-card p{margin:0;font-size:14.5px;line-height:1.5;color:var(--ink)}
+#tour-dots{display:flex;gap:6px}
+#tour-dots i{width:7px;height:7px;border-radius:50%;background:var(--hud-dim)}
+#tour-dots i.on{background:var(--hud);box-shadow:0 0 8px var(--hud)}
+#tour-nav{display:flex;gap:8px;align-items:center}
+#tour-skip{background:none;border:0;color:var(--muted);font-size:12px;letter-spacing:.12em;text-transform:uppercase;margin-right:auto;padding:6px 2px}
+#tour-skip:hover{color:#fff}
+#tour-next{--b:var(--amber)}
+#tourbtn{font-size:18px!important;font-weight:700;color:var(--hud)}
+@media (prefers-reduced-motion:reduce){ #tour-hole,#tour-card{transition:none;animation:none} }
 </style>
 </head>
 <body>
@@ -365,6 +384,7 @@ button{cursor:pointer}
       <button id="compass" aria-label="Turn back to Manhattan pointing up"><span><b>▲</b>N</span></button>
       <button id="reset" class="txt" aria-label="Reset view">RESET</button>
       <button id="soundbtn" aria-label="Turn ambient sound on or off" aria-pressed="false" title="Ambient sound"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z"/><path class="w" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg></button>
+      <button id="tourbtn" aria-label="Show the tour" title="Show the tour">?</button>
     </div>
     <button id="livechip" type="button"></button>
     <div id="linechip" hidden></div><div id="chooser" hidden></div>
@@ -1986,6 +2006,67 @@ $("grip").onclick = () => { if (Date.now() - (panel.dragged || 0) < 400) return;
     const open = wasOpen ? !(dy > 90 || v > 0.5) : (dy < -40 || v < -0.35);
     panel.style.transition = ""; panel.style.transform = ""; panel.classList.toggle("open", open); if (!open) panel.scrollTop = 0; setTimeout(touch, 300); };
   panel.addEventListener("touchend", end); panel.addEventListener("touchcancel", end); }
+
+/* =====================================================================
+   THE TOUR
+   A dimmed screen with a glowing spotlight that moves from one feature to the next, each with a short caption.
+   It opens by itself on someone's first visit; the "?" button in the map controls brings it back.
+   ===================================================================== */
+const TOUR = { i: 0, on: false, raf: 0, steps: [] };
+{ const phone = () => matchMedia("(max-width:760px)").matches, fingers = matchMedia("(pointer:coarse)").matches;
+  const sheet = open => { if (phone()) panel.classList.toggle("open", open); else if (open && panel.classList.contains("shut")) setMenu(true); };
+  const sec = id => () => { sheet(true); const s = $(id); s.hidden = false; const h = s.querySelector("h2"); if (h) h.scrollIntoView({ block: "nearest" }); return h; };
+  const mapArea = () => { const r = wrap.getBoundingClientRect(), side = phone() ? 0 : 372; return { left: r.left + side + 30, top: r.top + 70, width: r.width - side - 130, height: r.height - (phone() ? 260 : 150) }; };
+  TOUR.steps = [
+    { h: "Welcome to the subway at night", p: "A live 3D map of every New York City subway line. This quick tour takes about half a minute.", el: () => (sheet(false), null) },
+    { h: "Move around the map", p: fingers ? "Drag with one finger to move. Pinch to zoom, twist two fingers to turn, and slide two fingers up or down to tilt." : "Drag to move and scroll to zoom. Right-drag, or Q and E, turns the map; R and F tilt it. Point at a line to light it up.", el: () => (sheet(false), mapArea()) },
+    { h: "Map controls", p: "Zoom in and out, switch between 3D and a flat 2D view, turn north back to the top, or RESET to start over.", el: () => (sheet(false), $("ctl")) },
+    { h: "Tap a station", p: "Every dot is a station. " + (fingers ? "Tap" : "Click") + " one to see its lines, the next trains due, transfers, and whether it has an elevator.", el: () => { sheet(false); const s = ST.find(s => /^Times Sq/.test(s.name)); if (!s) return null; let x, y;
+        if (s.vis) { x = s.sx; y = s.sy; } else if (project(s.x, s.y, s.h / 10 * DEPTH * depthK)) { x = pt.x; y = pt.y; } else return null;      // dots are hidden when zoomed far out: point at where it is
+        const r = wrap.getBoundingClientRect(); return { left: r.left + x - 24, top: r.top + y - 24, width: 48, height: 48 }; } },
+    { h: "Plan a trip", p: "Choose where you start and where you're going. Type a name, or tap stations and pick Start here and Go here. You get the route, the time and live delays, and Play trip rides it for you.", el: sec("planner") },
+    { h: "Live trains", p: "When this light is green, the trains you see are real ones, placed from the MTA's live feed. Tap it to switch to a simulation.", el: () => (sheet(false), $("livechip")) },
+    { h: "Service status", p: "Delays, planned work and out-of-service elevators, straight from the MTA. The number shows how many there are right now.", el: sec("status") },
+    { h: "Lines", p: "Pick a line to light it up and dim the others, so you can follow one route across the city.", el: sec("filters") },
+    { h: "Display and sound", p: "Turn station names, moving trains, 3D depth and sounds on or off, and set the volume.", el: sec("display") },
+    { h: "Sound on or off", p: "One tap mutes or unmutes the music and city sounds.", el: () => (sheet(false), $("soundbtn")) },
+    { h: "That's it", p: "Tap ? any time to see this tour again. Enjoy the ride.", el: () => (sheet(false), $("tourbtn")) } ];
+  const box = el("div"); box.id = "tour"; box.hidden = true; box.setAttribute("role", "dialog"); box.setAttribute("aria-modal", "true"); box.setAttribute("aria-label", "Tour of the map");
+  box.innerHTML = '<div id="tour-hole"></div><div id="tour-card"><div class="tc-n" id="tour-n"></div><h3 id="tour-h"></h3><p id="tour-p"></p><div id="tour-dots"></div>' +
+    '<div id="tour-nav"><button id="tour-skip" type="button">Skip tour</button><button class="btn small" id="tour-back" type="button">Back</button><button class="btn small" id="tour-next" type="button">Next</button></div></div>';
+  document.body.appendChild(box);
+  const hole = $("tour-hole"), card = $("tour-card");
+  for (let k = 0; k < TOUR.steps.length; k++) $("tour-dots").appendChild(el("i"));
+  // keep the spotlight on its target while menus slide and the map moves underneath
+  const place = () => { if (!TOUR.on) return; const st = TOUR.steps[TOUR.i]; let r = st.target; if (r && r.getBoundingClientRect) r = r.getBoundingClientRect();
+    const vw = innerWidth, vh = innerHeight, cw = card.offsetWidth, ch = card.offsetHeight;
+    if (!r || !r.width) { hole.classList.add("none"); card.style.left = (vw - cw) / 2 + "px"; card.style.top = Math.max(16, (vh - ch) / 2) + "px"; }
+    else { hole.classList.remove("none"); const pad = 8, L = r.left - pad, T = r.top - pad, Wd = r.width + pad * 2, Ht = r.height + pad * 2;
+      Object.assign(hole.style, { left: L + "px", top: T + "px", width: Wd + "px", height: Ht + "px" });
+      let x, y; const below = T + Ht + 14, above = T - 14 - ch, rightOf = L + Wd + 14, leftOf = L - 14 - cw;
+      if (Ht > vh * 0.5 && Wd > vw * 0.5) { x = (vw - cw) / 2; y = Math.min(vh - ch - 16, Math.max(16, T + Ht - ch - 20)); }      // big area: card inside its lower part
+      else if (below + ch < vh - 12) { x = L + Wd / 2 - cw / 2; y = below; }
+      else if (above > 12) { x = L + Wd / 2 - cw / 2; y = above; }
+      else if (leftOf > 12) { x = leftOf; y = T + Ht / 2 - ch / 2; }
+      else if (rightOf + cw < vw - 12) { x = rightOf; y = T + Ht / 2 - ch / 2; }
+      else { x = (vw - cw) / 2; y = 16; }
+      card.style.left = Math.max(16, Math.min(vw - cw - 16, x)) + "px"; card.style.top = Math.max(16, Math.min(vh - ch - 16, y)) + "px"; }
+    TOUR.raf = requestAnimationFrame(place); };
+  const show = k => { TOUR.i = Math.max(0, Math.min(TOUR.steps.length - 1, k)); const st = TOUR.steps[TOUR.i], last = TOUR.i === TOUR.steps.length - 1;
+    $("tour-n").textContent = (TOUR.i + 1) + " / " + TOUR.steps.length; $("tour-h").textContent = st.h; $("tour-p").textContent = st.p;
+    [...$("tour-dots").children].forEach((d, j) => d.classList.toggle("on", j === TOUR.i));
+    $("tour-back").hidden = TOUR.i === 0; $("tour-next").textContent = TOUR.i === 0 ? "Show me" : last ? "Let's go" : "Next"; $("tour-skip").hidden = last;
+    card.style.animation = "none"; void card.offsetWidth; card.style.animation = "";
+    st.target = null; setTimeout(() => { if (TOUR.on && TOUR.steps[TOUR.i] === st) st.target = st.el(); }, 0); touch(); };
+  TOUR.start = () => { if (TOUR.on) return; TOUR.on = true; box.hidden = false; show(0); cancelAnimationFrame(TOUR.raf); place(); setTimeout(() => $("tour-next").focus(), 50); };
+  TOUR.end = () => { if (!TOUR.on) return; TOUR.on = false; box.hidden = true; cancelAnimationFrame(TOUR.raf); sheet(false); try { localStorage.setItem("subway-tour", "1"); } catch (e) {} $("tourbtn").focus(); };
+  $("tour-next").onclick = () => TOUR.i === TOUR.steps.length - 1 ? TOUR.end() : show(TOUR.i + 1);
+  $("tour-back").onclick = () => show(TOUR.i - 1);
+  $("tour-skip").onclick = TOUR.end;
+  $("tourbtn").onclick = TOUR.start;
+  addEventListener("keydown", e => { if (!TOUR.on) return; if (e.key === "Escape") TOUR.end(); else if (e.key === "ArrowRight") $("tour-next").click(); else if (e.key === "ArrowLeft" && TOUR.i) show(TOUR.i - 1); else return; e.preventDefault(); e.stopPropagation(); }, true);
+  let seen = false; try { seen = localStorage.getItem("subway-tour") === "1"; } catch (e) {}
+  if (!seen) setTimeout(TOUR.start, 1400); }      // first visit: open by itself once the map has drawn
 
 setHour(21); try { if (localStorage.getItem("subway-menu") === "0") setMenu(false); } catch (e) {}
 resize(); resetView(false);
