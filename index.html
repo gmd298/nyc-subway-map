@@ -364,7 +364,6 @@ button{cursor:pointer}
       <button id="compass" aria-label="Turn back to Manhattan pointing up"><span><b>▲</b>N</span></button>
       <button id="reset" class="txt" aria-label="Reset view">RESET</button>
       <button id="soundbtn" aria-label="Turn ambient sound on or off" aria-pressed="false" title="Ambient sound"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z"/><path class="w" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg></button>
-      <div id="soundhint" hidden>♪ Tap anywhere for sound</div>
       <div id="volpop" hidden><input type="range" id="vol" min="0" max="100" step="1" value="30" aria-label="Sound volume"></div>
     </div>
     <button id="livechip" type="button"></button>
@@ -1633,9 +1632,14 @@ function soundSet(on) { SOUND.on = on; $("volpop").hidden = !on; try { localStor
     else if (SOUND.ctx && SOUND.master) { SOUND.timers.forEach(clearTimeout); SOUND.timers = []; const g = SOUND.master.gain, t = SOUND.ctx.currentTime; g.cancelScheduledValues(t); g.setValueAtTime(g.value, t); g.linearRampToValueAtTime(0, t + 1.2); } } catch (e) {} }
 $("ambient").onchange = () => soundSet($("ambient").checked);
 $("soundbtn").onclick = () => soundSet(!SOUND.on);
-// sound is on by default: it starts at the first tap, click or key press (browsers do not allow sound before that), unless it was switched off last time
-{ let want = true; try { want = localStorage.getItem("subway-sound") !== "0"; } catch (e) {}
-  if (want) { $("soundhint").hidden = false; const go = e => { if (e.target.closest && e.target.closest("#soundbtn, #ambient")) { $("soundhint").hidden = true; return; } $("soundhint").hidden = true; removeEventListener("pointerdown", go, true); removeEventListener("keydown", go, true); if (!SOUND.on) soundSet(true); }; addEventListener("pointerdown", go, true); addEventListener("keydown", go, true); } }
+// Sound is on whenever the page opens. It starts at once if the browser allows it; most browsers only allow sound after the
+// first touch, click or key press, so it otherwise starts the moment that happens. The speaker button shows "on" from the start.
+{ let pending = true; $("soundbtn").classList.add("on");
+  const stop = () => { pending = false; removeEventListener("pointerdown", go, true); removeEventListener("keydown", go, true); };
+  const start = () => { if (!pending) return; stop(); if (!SOUND.on) soundSet(true); };
+  const go = e => { if (e.target.closest && e.target.closest("#soundbtn, #ambient")) { stop(); return; } start(); };      // the speaker button and switch handle themselves
+  addEventListener("pointerdown", go, true); addEventListener("keydown", go, true);
+  try { SOUND.ctx = new (window.AudioContext || window.webkitAudioContext)(); if (SOUND.ctx.state === "running") start(); else SOUND.ctx.resume().then(() => { if (SOUND.ctx.state === "running") start(); }).catch(() => {}); } catch (e) {} }
 document.addEventListener("visibilitychange", () => { if (!SOUND.ctx) return; if (document.hidden) SOUND.ctx.suspend(); else if (SOUND.on) SOUND.ctx.resume(); });
 
 // Main loop: glide the camera toward its goal, redraw the map only when something changed, then draw the moving parts.
