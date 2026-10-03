@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Next Train</title>
+<meta name="description" content="Live NYC subway times for your station, and when to leave to catch the next train.">
+<meta name="theme-color" content="#070c14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Next Train">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&display=swap">
+<style>
+/* One deliberate look: the same night-time neon console as the subway map. */
+:root{
+  --bg:#05080e; --glass:rgba(9,15,25,.92); --ink:#e8f1fa; --muted:#8a9bb0; --faint:#4e5d70;
+  --hud:#5cc8ff; --hud-dim:rgba(92,200,255,.28); --hud-faint:rgba(92,200,255,.08);
+  --amber:#ffc24a; --go:#5dff9a; --stop:#ff5a6a;
+  --font:"Chakra Petch","Helvetica Neue",Helvetica,Arial,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{background:var(--bg)}
+body{margin:0;min-height:100vh;background:radial-gradient(120% 60% at 50% 0%,#0c1a2c 0%,var(--bg) 70%);color:var(--ink);font:16px/1.45 var(--font);
+  padding:calc(env(safe-area-inset-top,0px) + 14px) 16px calc(env(safe-area-inset-bottom,0px) + 28px);-webkit-tap-highlight-color:transparent}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--hud);outline-offset:3px}
+.wrap{max-width:460px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+
+/* header */
+.top{display:flex;align-items:center;gap:10px}
+.top h1{margin:0;font-size:15px;letter-spacing:.2em;font-weight:700;color:#fff;text-shadow:0 0 12px rgba(92,200,255,.7);display:flex;align-items:center;gap:10px;margin-right:auto}
+.top h1::before{content:"";width:8px;height:8px;background:var(--amber);box-shadow:0 0 10px var(--amber);transform:rotate(45deg);animation:pulse 2.2s ease-in-out infinite}
+.pill{--b:var(--hud);border-radius:999px;background:color-mix(in srgb,var(--b) 12%,#060b12);border:2px solid var(--b);color:#fff;font-weight:700;font-size:12px;letter-spacing:.12em;text-transform:uppercase;
+  padding:7px 14px;box-shadow:0 0 8px color-mix(in srgb,var(--b) 55%,transparent),inset 0 0 8px color-mix(in srgb,var(--b) 30%,transparent);text-shadow:0 0 8px var(--b);text-decoration:none;display:inline-flex;align-items:center;gap:6px;transition:transform .12s,background .2s}
+.pill:active{transform:scale(.95)}
+.pill.amber{--b:var(--amber)}
+.pill.solid{background:#fff;color:#0a0f18;text-shadow:none;border-width:3px;--b:var(--amber);box-shadow:0 0 18px var(--amber),0 0 30px rgba(255,194,74,.45)}
+@keyframes pulse{0%,100%{opacity:.55}50%{opacity:1}}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* the station card: like the map's, but bigger */
+.card{background:linear-gradient(180deg,rgba(255,194,74,.09),transparent 60%),var(--glass);border:1px solid var(--hud-dim);border-radius:20px;padding:18px 18px 16px;display:flex;flex-direction:column;gap:14px;
+  box-shadow:0 10px 40px rgba(0,0,0,.45);animation:rise .35s ease both;position:relative;overflow:hidden}
+.card::before{content:"";position:absolute;left:0;top:16px;bottom:16px;width:2px;background:linear-gradient(var(--amber),transparent)}
+.lbl{font-size:10.5px;letter-spacing:.2em;font-weight:700;text-transform:uppercase;color:var(--muted)}
+.lbl.amber{color:var(--amber)}
+#st-name{margin:2px 0 0;font-size:28px;line-height:1.1;color:#fff;letter-spacing:.01em;text-shadow:0 0 14px rgba(92,200,255,.35);text-wrap:balance}
+#st-where{color:var(--muted);font-size:14px}
+#dirs{display:flex;flex-wrap:wrap;gap:6px 12px}
+.dir{display:flex;align-items:center;gap:5px;color:var(--hud);font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+.bullet{display:inline-flex;align-items:center;justify-content:center;min-width:1.65em;height:1.65em;padding:0 .3em;border-radius:999px;font-weight:700;font-size:.85em;line-height:1;flex:none;letter-spacing:0;text-shadow:none}
+.bullet.x{border-radius:4px;transform:rotate(45deg) scale(.86)} .bullet.x>span{transform:rotate(-45deg)}
+
+/* the big "leave in" readout */
+.hero{border:1.5px solid var(--amber);border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:4px;background:rgba(255,194,74,.06);
+  box-shadow:0 0 16px rgba(255,194,74,.28),inset 0 0 14px rgba(255,194,74,.12)}
+.hero .big{font-size:54px;line-height:1;font-weight:700;color:var(--amber);text-shadow:0 0 18px rgba(255,194,74,.55);font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.hero .big small{font-size:22px;margin-left:4px;letter-spacing:.06em}
+.hero .sub{color:var(--ink);font-size:14.5px;line-height:1.7}
+.hero .sub .bullet{vertical-align:1px;margin:0 2px}
+.hero.now{border-color:var(--go);background:rgba(93,255,154,.07);box-shadow:0 0 18px rgba(93,255,154,.35),inset 0 0 14px rgba(93,255,154,.14)}
+.hero.now .big,.hero.now .lbl{color:var(--go);text-shadow:0 0 18px rgba(93,255,154,.6)}
+.hero.none{border-color:var(--hud-dim);box-shadow:none;background:transparent}
+.hero.none .big{font-size:22px;color:var(--muted);text-shadow:none}
+
+/* train list */
+#list{display:flex;flex-direction:column}
+.nx{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:2px 10px;align-items:center;padding:9px 0;border-top:1px solid rgba(92,200,255,.12)}
+.nx:first-child{border-top:0}
+.nx .to{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);font-size:15px}
+.nx .min{font-weight:700;color:var(--amber);font-variant-numeric:tabular-nums;font-size:17px;text-align:right}
+.nx .lv{grid-column:2/4;font-size:12.5px;color:var(--go);letter-spacing:.04em}
+.nx.miss .to,.nx.miss .min{color:var(--faint)} .nx.miss .bullet{opacity:.4} .nx.miss .lv{color:var(--faint)}
+.empty{color:var(--muted);font-size:14px;padding:6px 0}
+
+/* walk time + status line */
+.walk{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--muted)}
+.walk b{color:#fff;font-size:16px;font-variant-numeric:tabular-nums;min-width:4.2em;text-align:center}
+.step{width:34px;height:34px;border-radius:50%;border:2px solid var(--hud);background:var(--hud-faint);color:#fff;font-size:18px;font-weight:700;line-height:1;display:grid;place-items:center;box-shadow:0 0 8px rgba(92,200,255,.4)}
+.step:active{transform:scale(.92)}
+#status{font-size:12px;color:var(--muted);letter-spacing:.04em;display:flex;align-items:center;gap:8px}
+#status::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--muted);flex:none}
+#status.on::before{background:var(--go);box-shadow:0 0 8px var(--go);animation:pulse 2.2s ease-in-out infinite}
+#status.bad::before{background:var(--stop)}
+
+/* folding help sections */
+details.box{background:var(--glass);border:1px solid var(--hud-dim);border-radius:16px;padding:0 16px}
+details.box>summary{list-style:none;cursor:pointer;padding:14px 0;color:var(--hud);font-size:12px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;display:flex;align-items:center;gap:10px}
+details.box>summary::-webkit-details-marker{display:none}
+details.box>summary::before{content:"";width:6px;height:6px;background:var(--hud);box-shadow:0 0 8px var(--hud);transform:rotate(45deg);flex:none}
+details.box>summary::after{content:"+";margin-left:auto;font-size:16px;letter-spacing:0}
+details.box[open]>summary::after{content:"–"}
+details.box .in{padding:0 0 16px;display:flex;flex-direction:column;gap:12px;font-size:14.5px}
+ol.steps{margin:0;padding-left:1.3em;display:flex;flex-direction:column;gap:7px}
+ol.steps li::marker{color:var(--amber);font-weight:700}
+.note{color:var(--muted);font-size:13px;margin:0}
+#copied{color:var(--go);font-size:13px;font-weight:700;letter-spacing:.08em}
+
+/* setup */
+.field{display:flex;flex-direction:column;gap:6px}
+.field input{width:100%;background:rgba(92,200,255,.06);border:1.5px solid var(--hud-dim);border-radius:12px;padding:12px 13px;font-size:17px}
+.field input:focus{outline:none;border-color:var(--amber);box-shadow:inset 0 -2px 0 var(--amber)}
+#results{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;max-height:330px;overflow:auto}
+#results li button{width:100%;text-align:left;background:none;border:0;border-radius:10px;padding:9px 10px;display:flex;flex-direction:column;gap:4px}
+#results li button:hover,#results li button:focus-visible{background:rgba(92,200,255,.12)}
+#results .nm{font-weight:700;font-size:16px}
+#results .sub{display:flex;gap:4px;flex-wrap:wrap;align-items:center;font-size:13px;color:var(--muted)}
+#picks{display:flex;flex-direction:column;gap:8px}
+.opt{display:flex;align-items:center;gap:10px;text-align:left;padding:11px 13px;border-radius:14px;border:1.5px solid var(--hud-dim);background:rgba(92,200,255,.04);transition:border-color .2s,box-shadow .2s,background .2s}
+.opt .bl{display:flex;gap:4px;flex-wrap:wrap}
+.opt .t{font-weight:700;letter-spacing:.04em;margin-right:auto}
+.opt .ck{width:22px;height:22px;border-radius:50%;border:2px solid var(--hud-dim);flex:none;display:grid;place-items:center;font-size:13px;font-weight:700;color:#0a0f18}
+.opt[aria-pressed="true"]{border-color:var(--amber);background:rgba(255,194,74,.08);box-shadow:0 0 12px rgba(255,194,74,.3)}
+.opt[aria-pressed="true"] .ck{background:var(--amber);border-color:var(--amber)}
+.opt[aria-pressed="true"] .ck::after{content:"✓"}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>NEXT TRAIN</h1>
+    <button class="pill" id="edit" type="button" hidden>Change</button>
+    <a class="pill" href="../" title="Open the full subway map">Map</a>
+  </header>
+
+  <!-- the live view -->
+  <section class="card" id="view" hidden aria-live="polite">
+    <div>
+      <div class="lbl amber">Your station</div>
+      <h2 id="st-name"></h2>
+      <div id="st-where"></div>
+    </div>
+    <div id="dirs"></div>
+    <div class="hero" id="hero">
+      <div class="lbl amber" id="hero-l">Leave in</div>
+      <div class="big" id="hero-big">–</div>
+      <div class="sub" id="hero-sub"></div>
+    </div>
+    <div>
+      <div class="lbl">Next trains (live)</div>
+      <div id="list"></div>
+    </div>
+    <div class="walk">Walk to the station <button class="step" id="w-" type="button" aria-label="Shorter walk">−</button><b id="walk-v"></b><button class="step" id="w+" type="button" aria-label="Longer walk">+</button></div>
+    <div id="status">Connecting to the MTA…</div>
+  </section>
+
+  <!-- choosing a station -->
+  <section class="card" id="setup" hidden>
+    <div>
+      <div class="lbl amber" id="setup-step">Step 1 of 2</div>
+      <h2 id="setup-h" style="margin:4px 0 0;font-size:22px;color:#fff">Which station do you use?</h2>
+    </div>
+    <div class="field" id="find">
+      <input id="q" type="search" autocomplete="off" placeholder="Type a station, like Flatbush Av" aria-label="Station name">
+      <ul id="results"></ul>
+    </div>
+    <div id="choose" hidden>
+      <div id="picks"></div>
+      <p class="note" style="margin-top:10px">Pick every direction you'd ride from here. You can choose more than one.</p>
+      <div class="walk" style="margin-top:12px">Walk to the station <button class="step" id="sw-" type="button" aria-label="Shorter walk">−</button><b id="swalk-v"></b><button class="step" id="sw+" type="button" aria-label="Longer walk">+</button></div>
+      <div class="row" style="margin-top:16px"><button class="pill solid" id="save" type="button">Show my trains</button><button class="pill" id="back" type="button">Different station</button></div>
+    </div>
+  </section>
+
+  <details class="box" id="homescreen">
+    <summary>Put it on your home screen</summary>
+    <div class="in">
+      <ol class="steps">
+        <li>Open this page in <b>Safari</b> on your iPhone.</li>
+        <li>Tap the <b>Share</b> button (the square with an arrow pointing up).</li>
+        <li>Scroll down and tap <b>Add to Home Screen</b>, then <b>Add</b>.</li>
+      </ol>
+      <p class="note">It opens straight to your station with live times, like an app. Times update every 30 seconds while it's open.</p>
+    </div>
+  </details>
+
+  <details class="box" id="widgetbox">
+    <summary>Home screen widget</summary>
+    <div class="in">
+      <p style="margin:0">A widget shows when to leave without opening anything. It uses <b>Scriptable</b>, a free app that lets you add your own widgets.</p>
+      <ol class="steps">
+        <li>Install <b>Scriptable</b> from the App Store (free).</li>
+        <li>Tap <b>Copy widget</b> below. It's already set up for your station and walk time.</li>
+        <li>Open Scriptable, tap <b>+</b> in the top corner, paste, and tap <b>Done</b>.</li>
+        <li>On your home screen, press and hold an empty spot, tap <b>Edit</b> then <b>Add Widget</b>, choose <b>Scriptable</b> and the medium size, and tap <b>Add Widget</b>.</li>
+        <li>Press and hold the new widget, tap <b>Edit Widget</b>, and set <b>Script</b> to the one you pasted.</li>
+      </ol>
+      <div class="row"><button class="pill amber" id="copy" type="button">Copy widget</button><span id="copied" hidden>Copied</span></div>
+      <textarea id="copybox" aria-label="Widget script" readonly hidden style="width:100%;height:120px;background:#060b12;color:var(--muted);border:1px solid var(--hud-dim);border-radius:10px;font:12px ui-monospace,monospace"></textarea>
+      <p class="note">The "leave in" countdown on the widget ticks by itself. iPhones only let widgets fetch new times every few minutes, so for up-to-the-second times tap the widget to open this page. If you change your station or walk time here, copy the widget again and paste it over the old one.</p>
+    </div>
+  </details>
+</div>
+
+<script>
+/* =====================================================================
+   NEXT TRAIN
+   Live arrivals for one station, read straight from the MTA's public train feeds,
+   and when to leave home to catch each train given your walk to the station.
+   Your choice is kept on this phone only (and in the page address, so a home-screen icon keeps it).
+   ===================================================================== */
+const STOPS = [["R43","37","77 St","Bk","R","Manhattan","Bay Ridge"],["M01","108","Middle Village-Metropolitan Av","Q","M","Inbound","Last Stop"],["127","611","Times Sq-42 St","M","1 2 3","Uptown","Downtown"],["S17","515","Annadale","SI","SIR","Ferry","South Shore"],["S01","627","Franklin Av","Bk","S","Last Stop","Prospect Park"],["254","349","Junius St","Bk","3","Manhattan","New Lots"],["726","471","34 St-Hudson Yards","M","7","Last Stop","Queens"],["713","457","52 St","Q","7","Outbound","Manhattan"],["615","373","E 149 St","Bx","6","Northbound","Manhattan"],["M11","97","Myrtle Av","Bk","M J Z","Outbound","Manhattan"],["F16","234","East Broadway","M","F","Uptown","Brooklyn"],["F33","248","Avenue N","Bk","F","Manhattan","Southbound"],["233","336","Hoyt St","Bk","2 3","Manhattan","Outbound"],["M05","110","Forest Av","Q","M","Inbound","Middle Village"],["S30","502","Tompkinsville","SI","SIR","Ferry","South Shore"],["A36","624","Chambers St","M","A C","Uptown","Brooklyn"],["604","363","Westchester Sq-E Tremont Av","Bx","6","Pelham Bay","Manhattan"],["D09","217","170 St","Bx","B D","Northbound","Manhattan"],["629","613","59 St","M","4 5 6","Uptown","Downtown"],["219","432","Prospect Av","Bx","2 5","Northbound","Manhattan"],["F39","253","Neptune Av","Bk","F","Manhattan","Coney Island"],["N09","78","Avenue U","Bk","N","Manhattan","Coney Island"],["610","368","Morrison Av-Soundview","Bx","6","Northbound","Manhattan"],["F32","247","Bay Pkwy","Bk","F","Manhattan","Southbound"],["R13","8","5 Av/59 St","M","N R W","Queens","Downtown"],["B22","69","25 Av","Bk","D","Manhattan","Coney Island"],["622","393","116 St","M","6","The Bronx","Downtown"],["H14","202","Beach 105 St","Q","A S","Inbound","Rockaway Park"],["F05","258","Briarwood","Q","E F","Jamaica","Manhattan"],["R19","14","23 St","M","R W","Uptown","Downtown"],["R18","13","28 St","M","R W","Uptown","Downtown"],["114","304","145 St","M","1","Uptown","Downtown"],["A03","144","Dyckman St","M","A","Uptown","Downtown"],["M16","101","Marcy Av","Bk","M J Z","Outbound","Manhattan"],["720","463","Hunters Point Av","Q","7","Outbound","Manhattan"],["A16","154","116 St","M","C B","Uptown","Downtown"],["A41","636","Jay St-MetroTech","Bk","A C F","Manhattan","Outbound"],["R39","33","45 St","Bk","R","Manhattan","Southbound"],["A52","185","Liberty Av","Bk","C","Manhattan","Outbound"],["G34","290","Classon Av","Bk","G","Queens","Southbound"],["D30","46","Cortelyou Rd","Bk","Q","Manhattan","Southbound"],["G20","272","36 St","Q","M R","Outbound","Manhattan"],["418","628","Fulton St","M","4 5","Uptown","Downtown"],["212","425","Bronx Park East","Bx","2 5","Northbound","Manhattan"],["503","444","Gun Hill Rd","Bx","5","Eastchester","Manhattan"],["B18","65","79 St","Bk","D","Manhattan","Southbound"],["G29","629","Metropolitan Av","Bk","G","Queens","Southbound"],["G21","273","Queens Plaza","Q","E F R","Outbound","Manhattan"],["406","381","Kingsbridge Rd","Bx","4","Northbound","Manhattan"],["R23","623","Canal St","M","R W","Uptown","Downtown"],["110","300","191 St","M","1","The Bronx","Downtown"],["G09","262","67 Av","Q","M R","Outbound","Manhattan"],["A51","621","Broadway Junction","Bk","A C","Manhattan","Outbound"],["R01","1","Astoria-Ditmars Blvd","Q","N W","Last Stop","Manhattan"],["246","358","Newkirk Av-Little Haiti","Bk","2 5","Manhattan","Flatbush"],["L15","126","Jefferson St","Bk","L","Manhattan","Outbound"],["725","611","Times Sq-42 St","M","7","Queens","Hudson Yards"],["S25","507","Dongan Hills","SI","SIR","Ferry","South Shore"],["H01","196","Aqueduct Racetrack","Q","A","Manhattan","Rockaways"],["J22","89","Cleveland St","Bk","J","Outbound","Manhattan"],["A20","158","86 St","M","C B","Uptown","Downtown"],["A57","189","Grant Av","Bk","A","Manhattan","Queens"],["G15","268","65 St","Q","M R","Outbound","Manhattan"],["D34","50","Avenue M","Bk","Q","Manhattan","Southbound"],["103","294","238 St","Bx","1","Van Cortlandt","Manhattan"],["238","341","Eastern Pkwy-Brooklyn Museum","Bk","2 3","Manhattan","Outbound"],["637","619","Bleecker St","M","6","Uptown","Downtown"],["D29","45","Beverley Rd","Bk","Q","Manhattan","Southbound"],["705","449","111 St","Q","7","Outbound","Manhattan"],["A15","153","125 St","M","A C B D","Uptown","Downtown"],["D18","228","23 St","M","F M","Uptown","Downtown"],["419","413","Wall St","M","4 5","Uptown","Downtown"],["N08","77","Kings Hwy","Bk","N","Manhattan","Coney Island"],["115","305","137 St-City College","M","1","Uptown","Downtown"],["226","440","116 St","M","2 3","Uptown","Downtown"],["136","326","Franklin St","M","1","Uptown","Downtown"],["410","385","176 St","Bx","4","Northbound","Manhattan"],["D14","277","7 Av","M","E B D","Outbound","Downtown"],["D08","216","174-175 Sts","Bx","B D","Northbound","Manhattan"],["M20","623","Canal St","M","J Z","Brooklyn","Downtown"],["L10","629","Lorimer St","Bk","L","Manhattan","Outbound"],["A30","165","23 St","M","C E","Uptown","Downtown"],["A46","179","Nostrand Av","Bk","A C","Manhattan","Outbound"],["N03","72","Fort Hamilton Pkwy","Bk","N","Manhattan","Coney Island"],["504","445","Pelham Pkwy","Bx","5","Eastchester","Manhattan"],["R06","5","36 Av","Q","N W","Astoria","Manhattan"],["D03","211","Bedford Park Blvd","Bx","B D","Northbound","Manhattan"],["619","377","3 Av-138 St","Bx","6","Northbound","Manhattan"],["M10","114","Central Av","Bk","M","Inbound","Middle Village"],["242","354","Sterling St","Bk","2 5","Manhattan","Flatbush"],["F22","238","Smith-9 Sts","Bk","F G","Northbound","Southbound"],["611","369","Elder Av","Bx","6","Northbound","Manhattan"],["Q05","475","96 St","M","Q","Last Stop","Downtown"],["229","628","Fulton St","M","2 3","Uptown","Brooklyn"],["S29","503","Stapleton","SI","SIR","Ferry","South Shore"],["M04","109","Fresh Pond Rd","Q","M","Inbound","Middle Village"],["A10","149","163 St-Amsterdam Av","M","C","Uptown","Downtown"],["R30","26","DeKalb Av","Bk","B Q R","Manhattan","Southbound"],["633","404","28 St","M","6","Uptown","Downtown"],["119","309","103 St","M","1","Uptown","Downtown"],["B04","221","21 St-Queensbridge","Q","M","Outbound","Manhattan"],["204","417","Nereid Av","Bx","2 5","Northbound","Manhattan"],["J14","82","104 St","Q","J Z","Jamaica","Manhattan"],["L24","133","Atlantic Av","Bk","L","Manhattan","Canarsie"],["R29","636","Jay St-MetroTech","Bk","R","Manhattan","Southbound"],["234","337","Nevins St","Bk","2 3 4 5","Manhattan","Outbound"],["L25","134","Sutter Av","Bk","L","Manhattan","Canarsie"],["D24","617","Atlantic Av-Barclays Ctr","Bk","B Q","Manhattan","Southbound"],["606","364","Zerega Av","Bx","6","Pelham Bay","Manhattan"],["F27","243","Church Av","Bk","F G","Northbound","Southbound"],["D42","57","W 8 St-NY Aquarium","Bk","F Q","Manhattan","Coney Island"],["F34","249","Avenue P","Bk","F","Manhattan","Southbound"],["414","604","161 St-Yankee Stadium","Bx","4","Northbound","Manhattan"],["301","436","Harlem-148 St","M","3","Last Stop","Downtown"],["132","601","14 St","M","1 2 3","Uptown","Downtown"],["H08","206","Beach 44 St","Q","A","Manhattan","Far Rockaway"],["218","431","Intervale Av","Bx","2 5","Northbound","Manhattan"],["201","416","Wakefield-241 St","Bx","2","Last Stop","Manhattan"],["F15","625","Delancey St-Essex St","M","F","Uptown","Brooklyn"],["J13","81","111 St","Q","J","Jamaica","Manhattan"],["F01","254","Jamaica-179 St","Q","F","Last Stop","Manhattan"],["614","372","Longwood Av","Bx","6","Northbound","Manhattan"],["118","308","Cathedral Pkwy (110 St)","M","1","Uptown","Downtown"],["R14","9","57 St-7 Av","M","N Q R W","Uptown","Downtown"],["607","365","Castle Hill Av","Bx","6","Pelham Bay","Manhattan"],["B21","68","Bay Pkwy","Bk","D","Manhattan","Southbound"],["623","394","110 St","M","6","The Bronx","Downtown"],["230","333","Wall St","M","2 3","Uptown","Brooklyn"],["H13","201","Beach 98 St","Q","A S","Inbound","Rockaway Park"],["R15","10","49 St","M","N R W","Uptown","Downtown"],["D12","220","155 St","M","B D","The Bronx","Downtown"],["S16","516","Huguenot","SI","SIR","Ferry","South Shore"],["255","350","Pennsylvania Av","Bk","3","Manhattan","New Lots"],["714","458","46 St-Bliss St","Q","7","Outbound","Manhattan"],["213","426","E 180 St","Bx","2 5","Northbound","Manhattan"],["409","384","Burnside Av","Bx","4","Northbound","Manhattan"],["Q04","476","86 St","M","Q","Uptown","Downtown"],["F12","276","5 Av/53 St","M","E F","Queens","Downtown"],["G30","286","Broadway","Bk","G","Queens","Southbound"],["A24","614","59 St-Columbus Circle","M","A C B D","Uptown","Downtown"],["R25","624","Cortlandt St","M","R W","Uptown","Downtown"],["208","421","Gun Hill Rd","Bx","2 5","Northbound","Manhattan"],["128","318","34 St-Penn Station","M","1 2 3","Uptown","Downtown"],["D38","53","Neck Rd","Bk","Q","Manhattan","Southbound"],["A61","192","Rockaway Blvd","Q","A","Manhattan","Outbound"],["R42","36","Bay Ridge Av","Bk","R","Manhattan","Bay Ridge"],["D43","58","Coney Island-Stillwell Av","Bk","D F N Q","Manhattan","Last Stop"],["628","399","68 St-Hunter College","M","6","Uptown","Downtown"],["G16","269","Northern Blvd","Q","M R","Outbound","Manhattan"],["L29","138","Canarsie-Rockaway Pkwy","Bk","L","Manhattan","Last Stop"],["A31","618","14 St","M","A C E","Uptown","Downtown"],["G22","606","Court Sq","Q","G","Last Stop","Brooklyn"],["237","340","Grand Army Plaza","Bk","2 3","Manhattan","Outbound"],["J31","96","Kosciuszko St","Bk","J","Outbound","Manhattan"],["D19","601","14 St","M","F M","Uptown","Downtown"],["M09","113","Knickerbocker Av","Bk","M","Inbound","Middle Village"],["618","376","Brook Av","Bx","6","Northbound","Manhattan"],["H02","197","Aqueduct-N Conduit Av","Q","A","Manhattan","Rockaways"],["S21","511","Oakwood Heights","SI","SIR","Ferry","South Shore"],["123","313","72 St","M","1 2 3","Uptown","Downtown"],["B17","64","71 St","Bk","D","Manhattan","Southbound"],["250","345","Crown Hts-Utica Av","Bk","3 4","Manhattan","Outbound"],["709","453","82 St-Jackson Hts","Q","7","Outbound","Manhattan"],["J23","90","Van Siclen Av","Bk","J Z","Outbound","Manhattan"],["L11","122","Graham Av","Bk","L","Manhattan","Outbound"],["J17","85","75 St-Elderts Ln","Q","J Z","Jamaica","Manhattan"],["702","448","Mets-Willets Point","Q","7","Outbound","Manhattan"],["638","409","Spring St","M","6","Uptown","Downtown"],["B10","224","57 St","M","M","Uptown","Downtown"],["227","441","110 St-Malcolm X Plaza","M","2 3","Uptown","Downtown"],["A19","157","96 St","M","C B","Uptown","Downtown"],["R36","32","36 St","Bk","D N R","Manhattan","Southbound"],["F04","257","Sutphin Blvd","Q","F","Jamaica","Manhattan"],["A55","188","Euclid Av","Bk","A C","Manhattan","Queens"],["R22","17","Prince St","M","R W","Uptown","Downtown"],["111","301","181 St","M","1","The Bronx","Downtown"],["S26","506","Old Town","SI","SIR","Ferry","South Shore"],["A34","169","Canal St","M","A C E","Uptown","Downtown"],["A02","143","Inwood-207 St","M","A","Last Stop","Downtown"],["D33","49","Avenue J","Bk","Q","Manhattan","Southbound"],["245","357","Beverly Rd","Bk","2 5","Manhattan","Flatbush"],["708","452","90 St-Elmhurst Av","Q","7","Outbound","Manhattan"],["M14","100","Hewes St","Bk","M J","Outbound","Manhattan"],["405","380","Bedford Park Blvd-Lehman College","Bx","4","Northbound","Manhattan"],["L03","602","14 St-Union Sq","M","L","West Side","Brooklyn"],["L14","125","Morgan Av","Bk","L","Manhattan","Outbound"],["D15","225","47-50 Sts-Rockefeller Ctr","M","B D F M","Uptown","Downtown"],["719","606","Court Sq","Q","7","Outbound","Manhattan"],["135","325","Canal St","M","1","Uptown","Downtown"],["A63","193","104 St","Q","A","Manhattan","Ozone Park"],["M21","622","Chambers St","M","J Z","Brooklyn","Downtown"],["L05","118","3 Av","M","L","West Side","Brooklyn"],["D04","212","Kingsbridge Rd","Bx","B D","Northbound","Manhattan"],["249","344","Kingston Av","Bk","3","Manhattan","Outbound"],["R26","22","Rector St","M","R W","Uptown","Downtown"],["J19","86","Cypress Hills","Bk","J","Queens","Manhattan"],["A40","173","High St","Bk","A C","Manhattan","Outbound"],["G08","261","Forest Hills-71 Av","Q","E F M R","Outbound","Manhattan"],["L20","130","Wilson Av","Bk","L","Manhattan","Outbound"],["G33","289","Bedford-Nostrand Avs","Bk","G","Queens","Southbound"],["S11","523","Arthur Kill","SI","SIR","Ferry","Tottenville"],["L26","135","Livonia Av","Bk","L","Manhattan","Canarsie"],["131","321","18 St","M","1","Uptown","Downtown"],["L19","129","Halsey St","Q","L","Manhattan","Outbound"],["724","609","5 Av","M","7","Queens","Hudson Yards"],["F21","237","Carroll St","Bk","F G","Northbound","Southbound"],["241","353","President St-Medgar Evers College","Bk","2 5","Manhattan","Flatbush"],["F29","244","Ditmas Av","Bk","F","Manhattan","Southbound"],["F35","250","Kings Hwy","Bk","F","Manhattan","Southbound"],["415","603","149 St-Hostos","Bx","4","Northbound","Manhattan"],["S22","510","New Dorp","SI","SIR","Ferry","South Shore"],["H07","205","Beach 60 St","Q","A","Manhattan","Far Rockaway"],["222","603","149 St-Hostos","Bx","2 5","Northbound","Manhattan"],["R31","617","Atlantic Av-Barclays Ctr","Bk","D N R","Manhattan","Southbound"],["209","422","Burke Av","Bx","2 5","Northbound","Manhattan"],["D25","41","7 Av","Bk","B Q","Manhattan","Southbound"],["D39","54","Sheepshead Bay","Bk","B Q","Manhattan","Southbound"],["B12","59","9 Av","Bk","D","Manhattan","Southbound"],["A32","167","W 4 St-Wash Sq","M","A C E","Uptown","Downtown"],["G07","280","Jamaica-Van Wyck","Q","E","Jamaica","Manhattan"],["G24","282","21 St","Q","G","Court Square","Brooklyn"],["A11","150","155 St","M","C","Uptown","Downtown"],["413","388","167 St","Bx","4","Northbound","Manhattan"],["101","293","Van Cortlandt Park-242 St","Bx","1","Last Stop","Manhattan"],["A25","162","50 St","M","C E","Uptown","Downtown"],["632","403","33 St","M","6","Uptown","Downtown"],["122","312","79 St","M","1","Uptown","Downtown"],["A47","180","Kingston-Throop Avs","Bk","C","Manhattan","Outbound"],["207","420","219 St","Bx","2 5","Northbound","Manhattan"],["G12","265","Grand Av-Newtown","Q","M R","Outbound","Manhattan"],["N04","615","New Utrecht Av","Bk","N","Manhattan","Coney Island"],["A12","151","145 St","M","A C","Uptown","Downtown"],["R05","4","Broadway","Q","N W","Astoria","Manhattan"],["A43","176","Lafayette Av","Bk","C","Manhattan","Outbound"],["D37","52","Avenue U","Bk","Q","Manhattan","Southbound"],["A60","191","88 St","Q","A","Manhattan","Outbound"],["R35","31","25 St","Bk","R","Manhattan","Southbound"],["G18","270","46 St","Q","M R","Outbound","Manhattan"],["G36","292","Fulton St","Bk","G","Queens","Southbound"],["639","623","Canal St","M","6","Uptown","Downtown"],["423","620","Borough Hall","Bk","4 5","Manhattan","Outbound"],["117","307","116 St-Columbia University","M","1","Uptown","Downtown"],["608","366","Parkchester","Bx","6","Northbound","Manhattan"],["634","405","23 St-Baruch College","M","6","Uptown","Downtown"],["H06","204","Beach 67 St","Q","A","Manhattan","Far Rockaway"],["408","383","183 St","Bx","4","Northbound","Manhattan"],["F11","612","Lexington Av/53 St","M","E F","Queens","Downtown"],["D26","42","Prospect Park","Bk","B Q S","Northbound","Southbound"],["129","319","28 St","M","1","Uptown","Downtown"],["R24","20","City Hall","M","R W","Uptown","Downtown"],["F07","260","75 Av","Q","E F","Jamaica","Manhattan"],["N05","74","18 Av","Bk","N","Manhattan","Coney Island"],["R16","611","Times Sq-42 St","M","N Q R W","Uptown","Downtown"],["112","605","168 St-Washington Hts","M","1","Uptown","Downtown"],["302","437","145 St","M","3","Harlem","Downtown"],["A06","146","181 St","M","A","Uptown","Downtown"],["107","297","215 St","M","1","The Bronx","Downtown"],["J30","95","Gates Av","Bk","J Z","Outbound","Manhattan"],["715","459","40 St-Lowery St","Q","7","Outbound","Manhattan"],["F20","236","Bergen St","Bk","F G","Northbound","Southbound"],["A48","181","Utica Av","Bk","A C","Manhattan","Outbound"],["Q03","477","72 St","M","Q","Uptown","Downtown"],["231","334","Clark St","Bk","2 3","Manhattan","Outbound"],["A22","160","72 St","M","C B","Uptown","Downtown"],["A54","187","Shepherd Av","Bk","C","Manhattan","Outbound"],["R41","35","59 St","Bk","N R","Manhattan","Southbound"],["A38","628","Fulton St","M","A C","Uptown","Brooklyn"],["602","361","Buhre Av","Bx","6","Pelham Bay","Manhattan"],["D11","604","161 St-Yankee Stadium","Bx","B D","Northbound","Manhattan"],["627","398","77 St","M","6","Uptown","Downtown"],["D32","48","Avenue H","Bk","Q","Manhattan","Southbound"],["139","329","Rector St","M","1","Uptown","Downtown"],["R08","6","39 Av-Dutch Kills","Q","N W","Astoria","Manhattan"],["D21","619","Broadway-Lafayette St","M","B D F M","Uptown","Downtown"],["S20","512","Bay Terrace","SI","SIR","Ferry","South Shore"],["J12","80","121 St","Q","J Z","Jamaica","Manhattan"],["134","324","Houston St","M","1","Uptown","Downtown"],["F02","255","169 St","Q","F","Jamaica","Manhattan"],["F30","245","18 Av","Bk","F","Manhattan","Southbound"],["501","442","Eastchester-Dyre Av","Bx","5","Last Stop","Manhattan"],["G31","287","Flushing Av","Bk","G","Queens","Southbound"],["B16","615","62 St","Bk","D","Manhattan","Southbound"],["251","346","Sutter Av-Rutland Rd","Bk","3","Manhattan","New Lots"],["214","427","West Farms Sq-E Tremont Av","Bx","2 5","Northbound","Manhattan"],["624","395","103 St","M","6","The Bronx","Downtown"],["H10","208","Beach 25 St","Q","A","Manhattan","Far Rockaway"],["M22","628","Fulton St","M","J Z","Brooklyn","Downtown"],["R21","16","8 St-NYU","M","R W","Uptown","Downtown"],["L12","123","Grand St","Bk","L","Manhattan","Outbound"],["902","611","Times Sq-42 St","M","S","Last Stop","Grand Central"],["S15","517","Prince's Bay","SI","SIR","Ferry","South Shore"],["256","351","Van Siclen Av","Bk","3","Manhattan","New Lots"],["701","447","Flushing-Main St","Q","7","Last Stop","Manhattan"],["S04","626","Botanic Garden","Bk","S","Franklin Av","Prospect Park"],["D05","213","Fordham Rd","Bx","B D","Northbound","Manhattan"],["236","339","Bergen St","Bk","2 3","Manhattan","Outbound"],["M08","630","Myrtle-Wyckoff Avs","Bk","M","Inbound","Middle Village"],["124","314","66 St-Lincoln Center","M","1","Uptown","Downtown"],["F24","240","7 Av","Bk","F G","Northbound","Southbound"],["617","375","Cypress Av","Bx","6","Northbound","Manhattan"],["A18","156","103 St","M","C B","Uptown","Downtown"],["H03","198","Howard Beach-JFK Airport","Q","A","Manhattan","Rockaways"],["244","356","Church Av","Bk","2 5","Manhattan","Flatbush"],["710","616","74 St-Broadway","Q","7","Outbound","Manhattan"],["J24","91","Alabama Av","Bk","J Z","Outbound","Manhattan"],["L21","131","Bushwick Av-Aberdeen St","Bk","L","Manhattan","Outbound"],["R32","28","Union St","Bk","R","Manhattan","Southbound"],["631","610","Grand Central-42 St","M","4 5 6","Uptown","Downtown"],["J16","84","85 St-Forest Pkwy","Q","J","Jamaica","Manhattan"],["B08","223","Lexington Av/63 St","M","M Q","Uptown & Queens","Downtown"],["R27","635","Whitehall St-South Ferry","M","R W","Uptown","Downtown"],["217","430","Simpson St","Bx","2 5","Northbound","Manhattan"],["L27","136","New Lots Av","Bk","L","Manhattan","Canarsie"],["210","423","Allerton Av","Bx","2 5","Northbound","Manhattan"],["D16","609","42 St-Bryant Pk","M","B D F M","Uptown","Downtown"],["F36","251","Avenue U","Bk","F","Manhattan","Coney Island"],["416","391","138 St-Grand Concourse","Bx","4 5","Northbound","Manhattan"],["B20","67","20 Av","Bk","D","Manhattan","Southbound"],["B13","60","Fort Hamilton Pkwy","Bk","D","Manhattan","Southbound"],["F25","241","15 St-Prospect Park","Bk","F G","Northbound","Southbound"],["138","328","WTC Cortlandt","M","1","Uptown","Downtown"],["D20","167","W 4 St-Wash Sq","M","B D F M","Uptown","Downtown"],["G26","283","Greenpoint Av","Bk","G","Queens","Southbound"],["M18","625","Delancey St-Essex St","M","M J Z","Brooklyn","Inbound"],["L06","119","1 Av","M","L","West Side","Brooklyn"],["D40","55","Brighton Beach","Bk","B Q","Manhattan","Southbound"],["A27","611","42 St-Port Authority Bus Terminal","M","A C E","Uptown","Downtown"],["R04","3","30 Av","Q","N W","Astoria","Manhattan"],["402","379","Mosholu Pkwy","Bx","4","Woodlawn","Manhattan"],["H11","209","Far Rockaway-Mott Av","Q","A","Manhattan","Last Stop"],["L02","601","6 Av","M","L","West Side","Brooklyn"],["601","360","Pelham Bay Park","Bx","6","Last Stop","Manhattan"],["723","610","Grand Central-42 St","M","7","Queens","Hudson Yards"],["613","371","Hunts Point Av","Bx","6","Northbound","Manhattan"],["S27","505","Grasmere","SI","SIR","Ferry","South Shore"],["J20","87","Crescent St","Bk","J Z","Outbound","Manhattan"],["A64","194","111 St","Q","A","Manhattan","Ozone Park"],["A07","147","175 St","M","A","Uptown","Downtown"],["106","296","Marble Hill-225 St","M","1","The Bronx","Downtown"],["121","311","86 St","M","1","Uptown","Downtown"],["206","419","225 St","Bx","2 5","Northbound","Manhattan"],["G13","266","Elmhurst Av","Q","M R","Outbound","Manhattan"],["635","602","14 St-Union Sq","M","4 5 6","Uptown","Downtown"],["D13","151","145 St","M","B D","Uptown","Downtown"],["D27","43","Parkside Av","Bk","Q","Manhattan","Southbound"],["248","343","Nostrand Av","Bk","3","Manhattan","Outbound"],["707","451","Junction Blvd","Q","7","Outbound","Manhattan"],["R44","38","86 St","Bk","R","Manhattan","Bay Ridge"],["412","387","170 St","Bx","4","Northbound","Manhattan"],["221","434","3 Av-149 St","Bx","2 5","Northbound","Manhattan"],["108","298","207 St","M","1","The Bronx","Downtown"],["125","614","59 St-Columbus Circle","M","1","Uptown","Downtown"],["H04","199","Broad Channel","Q","A S","Inbound","Rockaways"],["A44","177","Clinton-Washington Avs","Bk","C","Manhattan","Outbound"],["A49","182","Ralph Av","Bk","C","Manhattan","Outbound"],["711","455","69 St","Q","7","Outbound","Manhattan"],["B23","70","Bay 50 St","Bk","D","Manhattan","Coney Island"],["G11","264","Woodhaven Blvd","Q","M R","Outbound","Manhattan"],["S09","522","Tottenville","SI","SIR","Ferry","Last Stop"],["J27","621","Broadway Junction","Bk","J Z","Outbound","Manhattan"],["L17","630","Myrtle-Wyckoff Avs","Bk","L","Manhattan","Outbound"],["R09","461","Queensboro Plaza","Q","N W","Astoria","Manhattan"],["M13","99","Lorimer St","Bk","M J","Outbound","Manhattan"],["S23","509","Grant City","SI","SIR","Ferry","South Shore"],["G06","279","Sutphin Blvd-Archer Av-JFK Airport","Q","E J Z","Jamaica","Manhattan"],["716","460","33 St-Rawson St","Q","7","Outbound","Manhattan"],["A17","155","Cathedral Pkwy (110 St)","M","C B","Uptown","Downtown"],["F06","259","Kew Gardens-Union Tpke","Q","E F","Jamaica","Manhattan"],["130","320","23 St","M","1","Uptown","Downtown"],["A42","175","Hoyt-Schermerhorn Sts","Bk","A C G","Westbound","Queens"],["R20","602","14 St-Union Sq","M","N Q R W","Uptown","Downtown"],["224","438","135 St","M","2 3","Uptown","Downtown"],["N06","75","20 Av","Bk","N","Manhattan","Coney Island"],["A05","145","190 St","M","A","Uptown","Downtown"],["G35","291","Clinton-Washington Avs","Bk","G","Queens","Southbound"],["616","374","E 143 St-St Mary's St","Bx","6","Northbound","Manhattan"],["J29","94","Halsey St","Bk","J","Outbound","Manhattan"],["D22","231","Grand St","M","B D","Uptown","Brooklyn"],["N10","79","86 St","Bk","N","Manhattan","Coney Island"],["252","347","Saratoga Av","Bk","3","Manhattan","New Lots"],["S19","513","Great Kills","SI","SIR","Ferry","South Shore"],["232","620","Borough Hall","Bk","2 3","Manhattan","Outbound"],["M06","111","Seneca Av","Q","M","Inbound","Middle Village"],["H15","203","Rockaway Park-Beach 116 St","Q","A S","Inbound","Last Stop"],["L13","124","Montrose Av","Bk","L","Manhattan","Outbound"],["D10","218","167 St","Bx","B D","Northbound","Manhattan"],["257","352","New Lots Av","Bk","3","Manhattan","Last Stop"],["S14","518","Pleasant Plains","SI","SIR","Ferry","South Shore"],["502","443","Baychester Av","Bx","5","Eastchester","Manhattan"],["G32","288","Myrtle-Willoughby Avs","Bk","G","Queens","Southbound"],["215","428","174 St","Bx","2 5","Northbound","Manhattan"],["F09","606","Court Sq-23 St","Q","E F","Outbound","Manhattan"],["407","382","Fordham Rd","Bx","4","Northbound","Manhattan"],["A21","159","81 St-Museum of Natural History","M","C B","Uptown","Downtown"],["S31","501","St George","SI","SIR","Last Stop","South Shore"],["Q01","623","Canal St","M","N Q","Uptown","Downtown"],["A53","186","Van Siclen Av","Bk","C","Manhattan","Outbound"],["113","303","157 St","M","1","Uptown","Downtown"],["603","362","Middletown Rd","Bx","6","Pelham Bay","Manhattan"],["R34","30","Prospect Av","Bk","R","Manhattan","Southbound"],["E01","624","World Trade Center","M","E","Uptown","Last Stop"],["S03","141","Park Pl","Bk","S","Franklin Av","Prospect Park"],["D31","47","Newkirk Plaza","Bk","B Q","Manhattan","Southbound"],["G19","271","Steinway St","Q","M R","Outbound","Manhattan"],["F03","256","Parsons Blvd","Q","F","Jamaica","Manhattan"],["133","323","Christopher St-Stonewall","M","1","Uptown","Downtown"],["420","414","Bowling Green","M","4 5","Uptown","Downtown"],["609","367","St Lawrence Av","Bx","6","Northbound","Manhattan"],["116","306","125 St","M","1","Uptown","Downtown"],["R11","613","Lexington Av/59 St","M","N R W","Queens","Downtown"],["F18","235","York St","Bk","F","Manhattan","Southbound"],["F31","246","Avenue I","Bk","F","Manhattan","Southbound"],["B15","62","55 St","Bk","D","Manhattan","Southbound"],["H09","207","Beach 36 St","Q","A","Manhattan","Far Rockaway"],["M23","107","Broad St","M","J Z","Brooklyn","Last Stop"],["625","396","96 St","M","6","The Bronx","Downtown"],["R17","607","34 St-Herald Sq","M","N Q R W","Uptown","Downtown"],["901","610","Grand Central-42 St","M","S","Times Square","Last Stop"],["142","635","South Ferry","M","1","Uptown","Last Stop"],["D06","214","182-183 Sts","Bx","B D","Northbound","Manhattan"],["640","622","Brooklyn Bridge-City Hall","M","4 5 6","Uptown","Downtown"],["A14","152","135 St","M","C B","Uptown","Downtown"],["211","424","Pelham Pkwy","Bx","2 5","Northbound","Manhattan"],["N07","76","Bay Pkwy","Bk","N","Manhattan","Coney Island"],["225","439","125 St","M","2 3","Uptown","Downtown"],["B14","61","50 St","Bk","D","Manhattan","Southbound"],["R45","39","Bay Ridge-95 St","Bk","R","Manhattan","Last Stop"],["G28","284","Nassau Av","Bk","G","Queens","Southbound"],["A33","168","Spring St","M","C E","Uptown","Downtown"],["411","386","Mt Eden Av","Bx","4","Northbound","Manhattan"],["A09","605","168 St","M","A C","Uptown","Downtown"],["G05","278","Jamaica Center-Parsons/Archer","Q","E J Z","Last Stop","Manhattan"],["109","299","Dyckman St","M","1","The Bronx","Downtown"],["R40","34","53 St","Bk","R","Manhattan","Southbound"],["A59","190","80 St","Q","A","Manhattan","Outbound"],["A50","183","Rockaway Av","Bk","C","Manhattan","Outbound"],["G14","616","Jackson Hts-Roosevelt Av","Q","E F M R","Outbound","Manhattan"],["D35","51","Kings Hwy","Bk","B Q","Manhattan","Southbound"],["626","397","86 St","M","4 5 6","Uptown","Downtown"],["R03","2","Astoria Blvd","Q","N W","Astoria","Manhattan"],["216","429","Freeman St","Bx","2 5","Northbound","Manhattan"],["D01","210","Norwood-205 St","Bx","D","Last Stop","Manhattan"],["706","450","103 St-Corona Plaza","Q","7","Outbound","Manhattan"],["243","355","Winthrop St","Bk","2 5","Manhattan","Flatbush"],["F23","608","4 Av-9 St","Bk","F G","Northbound","Southbound"],["F26","242","Fort Hamilton Pkwy","Bk","F G","Northbound","Southbound"],["F38","252","Avenue X","Bk","F","Manhattan","Coney Island"],["205","418","233 St","Bx","2 5","Northbound","Manhattan"],["L16","127","DeKalb Av","Bk","L","Manhattan","Outbound"],["L28","137","East 105 St","Bk","L","Manhattan","Canarsie"],["721","464","Vernon Blvd-Jackson Av","Q","7","Outbound","Manhattan"],["621","392","125 St","M","4 5 6","The Bronx","Downtown"],["S24","508","Jefferson Av","SI","SIR","Ferry","South Shore"],["137","327","Chambers St","M","1 2 3","Uptown","Downtown"],["A65","195","Ozone Park-Lefferts Blvd","Q","A","Manhattan","Last Stop"],["B19","66","18 Av","Bk","D","Manhattan","Southbound"],["M19","103","Bowery","M","J Z","Brooklyn","Downtown"],["R33","608","4 Av-9 St","Bk","R","Manhattan","Southbound"],["239","626","Franklin Av-Medgar Evers College","Bk","2 3 4 5","Manhattan","Outbound"],["636","407","Astor Pl","M","6","Uptown","Downtown"],["D28","44","Church Av","Bk","B Q","Manhattan","Southbound"],["R28","620","Court St","Bk","R","Manhattan","Southbound"],["J28","93","Chauncey St","Bk","J Z","Outbound","Manhattan"],["712","456","61 St-Woodside","Q","7","Outbound","Manhattan"],["D41","56","Ocean Pkwy","Bk","Q","Manhattan","Coney Island"],["J21","88","Norwood Av","Bk","J Z","Outbound","Manhattan"],["L22","621","Broadway Junction","Bk","L","Manhattan","Outbound"],["104","295","231 St","Bx","1","Van Cortlandt","Manhattan"],["G10","263","63 Dr-Rego Park","Q","M R","Outbound","Manhattan"],["A28","164","34 St-Penn Station","M","A C E","Uptown","Downtown"],["H12","200","Beach 90 St","Q","A S","Inbound","Rockaway Park"],["126","316","50 St","M","1","Uptown","Downtown"],["120","310","96 St","M","1 2 3","Uptown","Downtown"],["A45","627","Franklin Av","Bk","C","Manhattan","Outbound"],["630","612","51 St","M","6","Uptown","Downtown"],["N02","71","8 Av","Bk","N","Manhattan","Coney Island"],["S13","519","Richmond Valley","SI","SIR","Ferry","Tottenville"],["235","617","Atlantic Av-Barclays Ctr","Bk","2 3 4 5","Manhattan","Outbound"],["247","359","Flatbush Av-Brooklyn College","Bk","2 5","Manhattan","Last Stop"],["401","378","Woodlawn","Bx","4","Last Stop","Manhattan"],["D17","607","34 St-Herald Sq","M","B D F M","Uptown","Downtown"],["505","446","Morris Park","Bx","5","Eastchester","Manhattan"],["L01","618","8 Av","M","L","Last Stop","Brooklyn"],["718","461","Queensboro Plaza","Q","7","Outbound","Manhattan"],["612","370","Whitlock Av","Bx","6","Northbound","Manhattan"],["M12","98","Flushing Av","Bk","M J","Outbound","Manhattan"],["S28","504","Clifton","SI","SIR","Ferry","South Shore"],["228","624","Park Place","M","2 3","Uptown","Brooklyn"],["220","433","Jackson Av","Bx","2 5","Northbound","Manhattan"],["D07","215","Tremont Av","Bx","B D","Northbound","Manhattan"],["L08","120","Bedford Av","Bk","L","Manhattan","Outbound"],["B06","222","Roosevelt Island","M","M","Queens","Downtown"],["J15","83","Woodhaven Blvd","Q","J Z","Jamaica","Manhattan"],["S18","514","Eltingville","SI","SIR","Ferry","South Shore"],["F14","232","2 Av","M","F","Uptown","Downtown"],["253","348","Rockaway Av","Bk","3","Manhattan","New Lots"]];      // [GTFS stop, complex, name, borough, daytime lines, north label, south label]
+const LINES = {"1":["1","#D82233","#FFFFFF"],"2":["2","#D82233","#FFFFFF"],"3":["3","#D82233","#FFFFFF"],"4":["4","#009952","#FFFFFF"],"5":["5","#009952","#FFFFFF"],"6":["6","#009952","#FFFFFF"],"7":["7","#9A38A1","#FFFFFF"],"A":["A","#0062CF","#FFFFFF"],"C":["C","#0062CF","#FFFFFF"],"E":["E","#0062CF","#FFFFFF"],"B":["B","#EB6800","#FFFFFF"],"D":["D","#EB6800","#FFFFFF"],"F":["F","#EB6800","#FFFFFF"],"M":["M","#EB6800","#FFFFFF"],"G":["G","#799534","#FFFFFF"],"J":["J","#8E5C33","#FFFFFF"],"Z":["Z","#8E5C33","#FFFFFF"],"L":["L","#7C858C","#FFFFFF"],"N":["N","#F6BC26","#000000"],"Q":["Q","#F6BC26","#000000"],"R":["R","#F6BC26","#000000"],"W":["W","#F6BC26","#000000"],"GS":["S","#7C858C","#FFFFFF"],"FS":["S","#7C858C","#FFFFFF"],"H":["S","#7C858C","#FFFFFF"],"SI":["SIR","#08179C","#FFFFFF"]};      // line id: [label, colour, text colour]
+const BORO = { M: "Manhattan", Bx: "The Bronx", Bk: "Brooklyn", Q: "Queens", SI: "Staten Island" };
+const MTA = "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2F";
+const FEED = { "1": "gtfs", "2": "gtfs", "3": "gtfs", "4": "gtfs", "5": "gtfs", "6": "gtfs", "7": "gtfs", GS: "gtfs", A: "gtfs-ace", C: "gtfs-ace", E: "gtfs-ace", H: "gtfs-ace", FS: "gtfs-ace",
+  B: "gtfs-bdfm", D: "gtfs-bdfm", F: "gtfs-bdfm", M: "gtfs-bdfm", G: "gtfs-g", J: "gtfs-jz", Z: "gtfs-jz", N: "gtfs-nqrw", Q: "gtfs-nqrw", R: "gtfs-nqrw", W: "gtfs-nqrw", L: "gtfs-l", SIR: "gtfs-si", SI: "gtfs-si" };
+const $ = id => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+const BY = new Map(STOPS.map(s => [s[0], s]));
+const lineOf = id => LINES[id] || LINES[id.replace(/X$/, "")] || [id, "#7C858C", "#FFFFFF"];
+function bullet(id) { const L = lineOf(id), b = el("span", "bullet" + (/X$/.test(id) ? " x" : "")), t = el("span", "", L[0]); b.style.background = L[1]; b.style.color = L[2]; b.appendChild(t); b.title = L[0] + " train"; return b; }
+const feedsFor = lines => [...new Set(lines.split(" ").flatMap(l => l === "S" ? ["gtfs", "gtfs-ace"] : [FEED[l] || "gtfs"]))];
+
+// ---- settings: picks = [{ stop: "247", dir: "N" }], walk = minutes
+let CFG = null;
+function readCfg() {
+  const q = new URLSearchParams(location.search), p = q.get("p");
+  if (p) { const picks = p.split(",").map(x => ({ stop: x.slice(0, -1), dir: x.slice(-1) })).filter(x => BY.has(x.stop) && /^[NS]$/.test(x.dir)); if (picks.length) return { picks, walk: Math.max(0, Math.min(60, +q.get("w") || 0)) }; }
+  try { const c = JSON.parse(localStorage.getItem("next-train") || "null"); if (c && c.picks && c.picks.every(x => BY.has(x.stop))) return c; } catch (e) {}
+  return null; }
+function saveCfg() { try { localStorage.setItem("next-train", JSON.stringify(CFG)); } catch (e) {}
+  const u = new URL(location.href); u.search = "?p=" + CFG.picks.map(x => x.stop + x.dir).join(",") + "&w=" + CFG.walk; history.replaceState(null, "", u); }
+const pageUrl = () => location.origin + location.pathname + "?p=" + CFG.picks.map(x => x.stop + x.dir).join(",") + "&w=" + CFG.walk;
+const walkText = m => m === 0 ? "0 min" : m + " min";
+
+/* ---------------------------------------------------------------------
+   Reading the MTA feed (a compact binary format): only what's needed here,
+   which is each trip's line and the time it's due at each of its upcoming stops.
+   --------------------------------------------------------------------- */
+function pb(u8, fn) { let p = 0; const n = u8.length;
+  const varint = () => { let v = 0, m = 1; for (;;) { const b = u8[p++]; v += (b & 127) * m; if (b < 128 || p >= n) return v; m *= 128; } };
+  while (p < n) { const key = varint(), f = Math.floor(key / 8), wt = key % 8;
+    if (wt === 0) fn(f, varint()); else if (wt === 2) { const l = varint(); fn(f, u8.subarray(p, p + l)); p += l; } else if (wt === 1) p += 8; else if (wt === 5) p += 4; else return; } }
+const str = a => { let s = ""; for (let i = 0; i < a.length; i++) s += String.fromCharCode(a[i]); return s; };
+function parseFeed(u8, out) {
+  pb(u8, (f, ent) => { if (f !== 2) return;
+    pb(ent, (f2, v2) => { if (f2 !== 3) return; let route = ""; const stops = [];
+      pb(v2, (f3, v3) => {
+        if (f3 === 1) pb(v3, (f4, v4) => { if (f4 === 5) route = str(v4); });
+        else if (f3 === 2) { let stop = "", t = 0; pb(v3, (f4, v4) => { if (f4 === 4) stop = str(v4); else if (f4 === 2 || f4 === 3) pb(v4, (f5, v5) => { if (f5 === 2 && (!t || f4 === 2)) t = v5; }); }); if (stop && t) stops.push([stop, t]); } });
+      if (route && stops.length) out.push({ route, stops }); }); }); }
+
+let ARR = [], okAt = 0, failed = false, loading = false;
+async function load() {
+  if (!CFG || loading) return; loading = true;
+  const want = new Set(CFG.picks.map(x => x.stop + x.dir)), feeds = [...new Set(CFG.picks.flatMap(x => feedsFor(BY.get(x.stop)[4])))], trips = []; let good = 0;
+  await Promise.all(feeds.map(async f => { try { const r = await fetch(MTA + f, { cache: "no-store" }); if (!r.ok) return; parseFeed(new Uint8Array(await r.arrayBuffer()), trips); good++; } catch (e) {} }));
+  loading = false;
+  if (!good) { failed = true; render(); return; }
+  const now = Date.now() / 1000, arr = [], seen = new Set();
+  for (const u of trips) { const last = u.stops[u.stops.length - 1][0], end = BY.get(last.slice(0, -1));
+    for (const [id, t] of u.stops) { if (!want.has(id) || id === last || t < now - 60 || t > now + 5400) continue;      // a train ending its run here can't be boarded
+      const key = u.route + id + Math.round(t / 20); if (seen.has(key)) continue; seen.add(key);      // the feed sometimes lists the same train twice
+      arr.push({ line: u.route, t, dest: end ? end[2] : "", dir: id.slice(-1), stop: id.slice(0, -1) }); } }
+  ARR = arr.sort((a, b) => a.t - b.t); okAt = Date.now(); failed = false; render(); }
+
+/* ---------------------------------------------------------------------
+   The live view
+   --------------------------------------------------------------------- */
+const clock = t => new Date(t * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+function showStation() { const first = BY.get(CFG.picks[0].stop);
+  $("st-name").textContent = first[2]; $("st-where").textContent = BORO[first[3]] || "";
+  const d = $("dirs"); d.textContent = "";
+  CFG.picks.forEach(x => { const s = BY.get(x.stop), w = el("div", "dir"); s[4].split(" ").forEach(l => w.appendChild(bullet(l === "S" ? (x.stop[0] === "9" ? "GS" : x.stop[0] === "H" ? "H" : "FS") : l === "SIR" ? "SI" : l)));
+    w.appendChild(el("span", "", (x.dir === "N" ? "↑ " : "↓ ") + (x.dir === "N" ? s[5] : s[6]))); d.appendChild(w); });
+  $("walk-v").textContent = walkText(CFG.walk); }
+function render() { if (!CFG) return; const now = Date.now() / 1000, walk = CFG.walk * 60, fresh = Date.now() - okAt < 150000;
+  const live = ARR.filter(a => a.t > now - 20);
+  const next = live.find(a => a.t - walk >= now - 15);
+  const hero = $("hero"), big = $("hero-big"), sub = $("hero-sub"); sub.textContent = "";
+  hero.classList.remove("now", "none");
+  if (!fresh) { hero.classList.add("none"); $("hero-l").textContent = "Live times"; big.textContent = failed ? "Can't reach the MTA" : "Loading…"; }
+  else if (!next) { hero.classList.add("none"); $("hero-l").textContent = "Leave in"; big.textContent = "No trains in the next 90 min"; }
+  else { const s = Math.max(0, Math.round(next.t - walk - now));
+    if (s < 45) { hero.classList.add("now"); $("hero-l").textContent = CFG.walk ? "Leave now" : "Train arriving"; big.textContent = CFG.walk ? "Go!" : "Now"; }
+    else { $("hero-l").textContent = CFG.walk ? "Leave in" : "Next train in"; const m = Math.floor(s / 60); big.textContent = m >= 60 ? Math.floor(m / 60) + ":" + String(m % 60).padStart(2, "0") : m + ":" + String(s % 60).padStart(2, "0"); big.appendChild(el("small", "", m >= 60 ? "hr" : "min")); }
+    sub.append("Catch the ", bullet(next.line), " at " + clock(next.t) + (next.dest ? " to " + next.dest : "")); }
+  const list = $("list"); list.textContent = "";
+  if (fresh) { const rows = live.slice(0, 8);
+    rows.forEach(a => { const r = el("div", "nx"), m = Math.round((a.t - now) / 60), lv = Math.round((a.t - walk - now) / 60), miss = a.t - walk < now - 15;
+      r.classList.toggle("miss", miss); r.append(bullet(a.line), el("span", "to", a.dest ? "to " + a.dest : ""), el("span", "min", m < 1 ? "now" : m + " min"));
+      if (CFG.walk) r.appendChild(el("span", "lv", miss ? "Too soon to catch" : lv < 1 ? "Leave now" : "Leave in " + lv + " min · " + clock(a.t - walk)));
+      list.appendChild(r); });
+    if (!rows.length) list.appendChild(el("div", "empty", "No trains reported here in the next 90 minutes.")); }
+  const st = $("status"), ago = Math.round((Date.now() - okAt) / 1000);
+  st.className = fresh ? "on" : failed ? "bad" : ""; st.textContent = fresh ? "Live from the MTA · updated " + (ago < 5 ? "just now" : ago + "s ago") : failed ? "Can't reach the MTA right now. Trying again…" : "Connecting to the MTA…";
+  document.title = fresh && next ? (CFG.walk ? "Leave in " : "Train in ") + Math.max(0, Math.round((next.t - walk - now) / 60)) + " min · Next Train" : "Next Train"; }
+
+function openView() { scrollTo(0, 0); $("setup").hidden = true; $("view").hidden = false; $("edit").hidden = false; $("widgetbox").hidden = false; $("homescreen").hidden = false; showStation(); render(); load(); }
+function changeWalk(d) { CFG.walk = Math.max(0, Math.min(60, CFG.walk + d)); saveCfg(); $("walk-v").textContent = walkText(CFG.walk); render(); }
+$("w-").onclick = () => changeWalk(-1); $("w+").onclick = () => changeWalk(1);
+setInterval(render, 1000);
+setInterval(() => { if (!document.hidden) load(); }, 30000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });      // coming back to the app: fetch fresh times at once
+
+/* ---------------------------------------------------------------------
+   Choosing a station and directions
+   --------------------------------------------------------------------- */
+const COMPLEX = new Map(); STOPS.forEach(s => (COMPLEX.get(s[1]) || COMPLEX.set(s[1], []).get(s[1])).push(s));
+const flat = s => s.toLowerCase().replace(/\bst\b|\bstreet\b/g, "st").replace(/[^a-z0-9]/g, "");
+const PLACES = [...COMPLEX.values()].map(ss => { const names = [...new Set(ss.map(s => s[2]))]; return { ss, name: names[0], alt: names.slice(1), key: names.map(flat).join("|"), lines: [...new Set(ss.flatMap(s => s[4].split(" ")))] }; });
+let draft = null, dwalk = 5;
+function setupOpen() { $("view").hidden = true; $("setup").hidden = false; $("edit").hidden = true; $("widgetbox").hidden = !CFG; $("homescreen").hidden = !CFG; draft = null; dwalk = CFG ? CFG.walk : 5;
+  $("find").hidden = false; $("choose").hidden = true; $("setup-step").textContent = "Step 1 of 2"; $("setup-h").textContent = "Which station do you use?"; $("q").value = ""; search(); setTimeout(() => $("q").focus(), 50); }
+function search() { const q = flat($("q").value), ul = $("results"); ul.textContent = ""; if (!q) return;
+  const hits = PLACES.filter(p => p.key.includes(q)).sort((a, b) => (a.key.startsWith(q) ? 0 : 1) - (b.key.startsWith(q) ? 0 : 1) || a.name.length - b.name.length).slice(0, 12);
+  if (!hits.length) { ul.appendChild(el("li", "empty", "No station by that name.")); return; }
+  hits.forEach(p => { const li = el("li"), b = el("button"), sub = el("span", "sub"); b.type = "button"; b.appendChild(el("span", "nm", p.name)); p.lines.forEach(l => sub.appendChild(bullet(l === "S" ? "GS" : l === "SIR" ? "SI" : l)));
+    sub.appendChild(el("span", "", " " + (BORO[p.ss[0][3]] || ""))); b.appendChild(sub); b.onclick = () => choose(p); li.appendChild(b); ul.appendChild(li); }); }
+$("q").addEventListener("input", search);
+$("q").addEventListener("keydown", e => { if (e.key === "Enter") { const b = $("results").querySelector("button"); if (b) b.click(); } });
+function choose(p) { draft = { p, on: new Set(CFG && CFG.picks.every(x => p.ss.some(s => s[0] === x.stop)) ? CFG.picks.map(x => x.stop + x.dir) : []) };
+  $("find").hidden = true; $("choose").hidden = false; $("setup-step").textContent = "Step 2 of 2"; $("setup-h").textContent = p.name + ": which way?";
+  const box = $("picks"); box.textContent = "";
+  p.ss.forEach(s => [["N", s[5]], ["S", s[6]]].forEach(([dir, label]) => { if (!label || /^last stop$/i.test(label)) return;      // trains don't leave from here in that direction
+    const key = s[0] + dir, b = el("button", "opt"), bl = el("span", "bl"); b.type = "button";
+    s[4].split(" ").forEach(l => bl.appendChild(bullet(l === "S" ? (s[0][0] === "9" ? "GS" : s[0][0] === "H" ? "H" : "FS") : l === "SIR" ? "SI" : l)));
+    b.append(bl, el("span", "t", (dir === "N" ? "↑ " : "↓ ") + label), el("span", "ck")); b.setAttribute("aria-pressed", draft.on.has(key));
+    b.onclick = () => { draft.on.has(key) ? draft.on.delete(key) : draft.on.add(key); b.setAttribute("aria-pressed", draft.on.has(key)); $("save").disabled = !draft.on.size; $("save").style.opacity = draft.on.size ? 1 : .45; };
+    box.appendChild(b); }));
+  if (!draft.on.size && box.children.length === 1) { box.children[0].click(); }
+  $("save").disabled = !draft.on.size; $("save").style.opacity = draft.on.size ? 1 : .45; $("swalk-v").textContent = walkText(dwalk); }
+$("sw-").onclick = () => { dwalk = Math.max(0, dwalk - 1); $("swalk-v").textContent = walkText(dwalk); };
+$("sw+").onclick = () => { dwalk = Math.min(60, dwalk + 1); $("swalk-v").textContent = walkText(dwalk); };
+$("back").onclick = setupOpen;
+$("save").onclick = () => { if (!draft || !draft.on.size) return; CFG = { picks: [...draft.on].map(k => ({ stop: k.slice(0, -1), dir: k.slice(-1) })), walk: dwalk }; ARR = []; okAt = 0; saveCfg(); openView(); };
+$("edit").onclick = setupOpen;
+
+/* ---------------------------------------------------------------------
+   The home-screen widget, for the free Scriptable app. "Copy widget" writes out a small
+   script already set to this station, these directions and this walk time.
+   --------------------------------------------------------------------- */
+function widgetScript() {
+  const first = BY.get(CFG.picks[0].stop), names = {}; STOPS.forEach(s => names[s[0]] = s[2]);
+  const cfg = { name: first[2], picks: CFG.picks.map(x => x.stop + x.dir), dirs: CFG.picks.map(x => { const s = BY.get(x.stop); return (x.dir === "N" ? "↑ " : "↓ ") + (x.dir === "N" ? s[5] : s[6]); }), walk: CFG.walk,
+    feeds: [...new Set(CFG.picks.flatMap(x => feedsFor(BY.get(x.stop)[4])))], url: pageUrl() };
+  const lines = {}; Object.keys(LINES).forEach(k => lines[k] = LINES[k]);
+  return "// Next Train widget for Scriptable: " + cfg.name + ", walk " + cfg.walk + " min\n// Made at " + location.origin + location.pathname + " (copy it again there to change station or walk time)\n" +
+    "const CFG = " + JSON.stringify(cfg) + ";\nconst LINES = " + JSON.stringify(lines) + ";\nconst NAMES = " + JSON.stringify(names) + ";\n" + "(" + WIDGET.toString() + ")();\n"; }
+// This function runs inside Scriptable, not on this page.
+function WIDGET() {
+  const MTA = "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2F";
+  const pb = (u8, fn) => { let p = 0; const n = u8.length; const varint = () => { let v = 0, m = 1; for (;;) { const b = u8[p++]; v += (b & 127) * m; if (b < 128 || p >= n) return v; m *= 128; } };
+    while (p < n) { const key = varint(), f = Math.floor(key / 8), wt = key % 8; if (wt === 0) fn(f, varint()); else if (wt === 2) { const l = varint(); fn(f, u8.subarray(p, p + l)); p += l; } else if (wt === 1) p += 8; else if (wt === 5) p += 4; else return; } };
+  const str = a => { let s = ""; for (let i = 0; i < a.length; i++) s += String.fromCharCode(a[i]); return s; };
+  const lineOf = id => LINES[id] || LINES[id.replace(/X$/, "")] || [id, "#7C858C", "#FFFFFF"];
+  const fmt = new DateFormatter(); fmt.useNoDateStyle(); fmt.useShortTimeStyle();
+  async function arrivals() { const want = new Set(CFG.picks), now = Date.now() / 1000, out = [], seen = new Set(); let good = 0;
+    for (const f of CFG.feeds) { try { const req = new Request(MTA + f); req.timeoutInterval = 12; const data = await req.load(); const u8 = new Uint8Array(data.getBytes()); good++;
+        pb(u8, (fe, ent) => { if (fe !== 2) return; pb(ent, (f2, v2) => { if (f2 !== 3) return; let route = ""; const stops = [];
+          pb(v2, (f3, v3) => { if (f3 === 1) pb(v3, (f4, v4) => { if (f4 === 5) route = str(v4); });
+            else if (f3 === 2) { let stop = "", t = 0; pb(v3, (f4, v4) => { if (f4 === 4) stop = str(v4); else if (f4 === 2 || f4 === 3) pb(v4, (f5, v5) => { if (f5 === 2 && (!t || f4 === 2)) t = v5; }); }); if (stop && t) stops.push([stop, t]); } });
+          if (!route || !stops.length) return; const last = stops[stops.length - 1][0];
+          for (const [id, t] of stops) { if (!want.has(id) || id === last || t < now - 30 || t > now + 5400) continue; const k = route + id + Math.round(t / 20); if (seen.has(k)) continue; seen.add(k);
+            out.push({ line: route, t, dest: NAMES[last.slice(0, -1)] || "" }); } }); }); } catch (e) {} }
+    return good ? out.sort((a, b) => a.t - b.t) : null; }
+  function bullet(stack, id, size) { const L = lineOf(id), b = stack.addStack(); b.size = new Size(size, size); b.cornerRadius = size / 2; b.backgroundColor = new Color(L[1]); b.centerAlignContent();
+    const t = b.addText(L[0]); t.font = Font.boldRoundedSystemFont(L[0].length > 1 ? size * 0.42 : size * 0.62); t.textColor = new Color(L[2]); t.lineLimit = 1; t.minimumScaleFactor = 0.5; }
+  async function build() { const w = new ListWidget(), big = config.widgetFamily !== "small", amber = new Color("#ffc24a"), muted = new Color("#8a9bb0"), white = Color.white(), go = new Color("#5dff9a");
+    const g = new LinearGradient(); g.colors = [new Color("#0c1a2c"), new Color("#05080e")]; g.locations = [0, 1]; w.backgroundGradient = g; w.url = CFG.url; w.setPadding(14, 16, 12, 16);
+    const head = w.addStack(); head.centerAlignContent(); const nm = head.addText(CFG.name); nm.font = Font.boldSystemFont(big ? 15 : 13); nm.textColor = white; nm.lineLimit = 1; nm.minimumScaleFactor = 0.7;
+    if (big) { head.addSpacer(); const d = head.addText(CFG.dirs.join("  ")); d.font = Font.semiboldSystemFont(10); d.textColor = new Color("#5cc8ff"); d.lineLimit = 1; }
+    const arr = await arrivals(), now = Date.now() / 1000, walk = CFG.walk * 60; w.addSpacer(big ? 6 : 4);
+    if (!arr) { const t = w.addText("Can't reach the MTA. Tap to open."); t.font = Font.mediumSystemFont(13); t.textColor = muted; w.refreshAfterDate = new Date(Date.now() + 120000); return w; }
+    const can = arr.filter(a => a.t - walk >= now + 20), next = can[0];
+    const lab = w.addText(next ? (CFG.walk ? "LEAVE IN" : "NEXT TRAIN IN") : "NO TRAINS SOON"); lab.font = Font.boldSystemFont(10); lab.textColor = amber;
+    if (next) { const leave = new Date((next.t - walk) * 1000), d = w.addDate(leave); d.applyTimerStyle(); d.font = Font.boldRoundedSystemFont(big ? 34 : 30); d.textColor = amber;
+      const row = w.addStack(); row.centerAlignContent(); bullet(row, next.line, 16); row.addSpacer(5); const c = row.addText("at " + fmt.string(new Date(next.t * 1000)) + (big && next.dest ? "  to " + next.dest : "")); c.font = Font.mediumSystemFont(12); c.textColor = white; c.lineLimit = 1;
+      w.refreshAfterDate = new Date(Math.min(leave.getTime() + 20000, Date.now() + 5 * 60000)); }
+    else w.refreshAfterDate = new Date(Date.now() + 5 * 60000);
+    if (big) { w.addSpacer(6); can.slice(1, 3).forEach(a => { const r = w.addStack(); r.centerAlignContent(); bullet(r, a.line, 14); r.addSpacer(5);
+        const t = r.addText(fmt.string(new Date(a.t * 1000)) + (a.dest ? "  to " + a.dest : "")); t.font = Font.systemFont(11); t.textColor = muted; t.lineLimit = 1; r.addSpacer();
+        if (CFG.walk) { const l = r.addText("leave " + fmt.string(new Date((a.t - walk) * 1000))); l.font = Font.semiboldSystemFont(11); l.textColor = go; } }); }
+    w.addSpacer(); const ft = w.addText("Updated " + fmt.string(new Date())); ft.font = Font.systemFont(9); ft.textColor = new Color("#4e5d70"); return w; }
+  return build().then(w => { if (config.runsInWidget) Script.setWidget(w); else w.presentMedium(); Script.complete(); });
+}
+$("copy").onclick = () => { const s = widgetScript(), ok = () => { $("copied").hidden = false; setTimeout(() => $("copied").hidden = true, 2500); };
+  const fallback = () => { const t = $("copybox"); t.hidden = false; t.value = s; t.focus(); t.select(); try { if (document.execCommand("copy")) ok(); } catch (e) {} };
+  if (navigator.clipboard) navigator.clipboard.writeText(s).then(ok, fallback); else fallback(); };
+
+// ---- start
+CFG = readCfg(); if (CFG) { saveCfg(); openView(); } else setupOpen();
+</script>
+</body>
+</html>
