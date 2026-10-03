@@ -1629,8 +1629,8 @@ function soundSet(on) { SOUND.on = on; $("volpop").hidden = !on; try { localStor
     else if (SOUND.ctx && SOUND.master) { SOUND.timers.forEach(clearTimeout); SOUND.timers = []; const g = SOUND.master.gain, t = SOUND.ctx.currentTime; g.cancelScheduledValues(t); g.setValueAtTime(g.value, t); g.linearRampToValueAtTime(0, t + 1.2); } } catch (e) {} }
 $("ambient").onchange = () => soundSet($("ambient").checked);
 $("soundbtn").onclick = () => soundSet(!SOUND.on);
-// left on last time? start again at the first tap or click (browsers do not allow sound before that)
-{ let want = false; try { want = localStorage.getItem("subway-sound") === "1"; } catch (e) {}
+// sound is on by default: it starts at the first tap, click or key press (browsers do not allow sound before that), unless it was switched off last time
+{ let want = true; try { want = localStorage.getItem("subway-sound") !== "0"; } catch (e) {}
   if (want) { const go = e => { if (e.target.closest && e.target.closest("#soundbtn, #ambient")) return; removeEventListener("pointerdown", go, true); removeEventListener("keydown", go, true); if (!SOUND.on) soundSet(true); }; addEventListener("pointerdown", go, true); addEventListener("keydown", go, true); } }
 document.addEventListener("visibilitychange", () => { if (!SOUND.ctx) return; if (document.hidden) SOUND.ctx.suspend(); else if (SOUND.on) SOUND.ctx.resume(); });
 
