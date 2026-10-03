@@ -343,7 +343,7 @@ button{cursor:pointer}
       <label class="switch" for="showplaces"><input type="checkbox" id="showplaces" checked> Landmark and park names</label>
       <label class="switch" for="ambient"><input type="checkbox" id="ambient"> Ambient sound: music, city and passing trains</label>
       <label class="vol-row" for="vol2">Volume <input type="range" id="vol2" min="0" max="100" step="1" value="30"></label>
-      <label class="switch" for="sfx"><input type="checkbox" id="sfx"> Button clicks</label>
+      <label class="switch" for="sfx"><input type="checkbox" id="sfx" checked> Button clicks</label>
       <label class="switch" for="acc"><input type="checkbox" id="acc"> Show only accessible stations</label>
       <label class="switch" for="trains"><input type="checkbox" id="trains" checked> Moving trains</label>
       <label class="switch" for="live"><input type="checkbox" id="live" checked> Live trains (real positions from the MTA)</label>
@@ -1038,7 +1038,8 @@ function render() {
   ctx.lineJoin = ctx.lineCap = "round"; roundR = Math.max(8, Math.min(26, lw * 3.2));
   // faint place names
   ctx.textAlign = "center";
-  for (const [name, lon, lat, kind, lon2, lat2, wide] of PLACES) { if (kind === "b") continue;      // borough names are drawn later, on top of the lines const g = ll(lon, lat); if (!project(g[0], g[1], 0)) continue;
+  for (const [name, lon, lat, kind, lon2, lat2, wide] of PLACES) { if (kind === "b") continue;      // borough names are drawn later, on top of the lines
+    const g = ll(lon, lat); if (!project(g[0], g[1], 0)) continue;
     if (kind === "r") {      // a river: the name lies along the channel, between its two banks, and only shows once the channel is wide enough to hold it
       const ax = pt.x, ay = pt.y, g2 = ll(lon2, lat2); if (!project(g2[0], g2[1], 0) || wide * ppm < 26) continue; let an = Math.atan2(pt.y - ay, pt.x - ax); if (Math.cos(an) < 0) an += Math.PI;
       ctx.font = 'italic 12px Georgia,"Times New Roman",serif'; ctx.fillStyle = COL.wlabel; ctx.textBaseline = "middle"; ctx.save(); ctx.translate((ax + pt.x) / 2, (ay + pt.y) / 2); ctx.rotate(an); ctx.fillText(name, 0, 0); ctx.restore(); ctx.textBaseline = "alphabetic"; continue; }
@@ -1919,7 +1920,7 @@ $("collapse").onclick = () => setMenu(false); $("menu-tab").onclick = () => setM
 addEventListener("keydown", e => { if (e.target.tagName !== "INPUT" && e.key.toLowerCase() === "m" && !e.ctrlKey && !e.metaKey) setMenu(panel.classList.contains("shut")); });
 // Optional sound: a soft blip on click and a quieter tick on hover, made with the browser's own tone generator.
 let audio = null;
-function blip(freq, vol) { if (!$("sfx").checked) return; try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); const o = audio.createOscillator(), g = audio.createGain(), now = audio.currentTime;
+function blip(freq, vol) { if (!$("sfx").checked) return; vol *= 0.6 * soundLevel() / 0.036; if (vol < 0.0002) return; try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); const o = audio.createOscillator(), g = audio.createGain(), now = audio.currentTime;
     o.type = "triangle"; o.frequency.setValueAtTime(freq, now); o.frequency.exponentialRampToValueAtTime(freq * 1.5, now + 0.07); g.gain.setValueAtTime(vol, now); g.gain.exponentialRampToValueAtTime(0.0001, now + 0.12); o.connect(g).connect(audio.destination); o.start(now); o.stop(now + 0.13); } catch (e) {} }
 document.addEventListener("click", e => { if (e.target.closest("button, .switch, .ac li, .sec > h2")) blip(520, 0.05); });
 document.addEventListener("pointerover", e => { const b = e.target.closest("button, .ac li"); if (b && b !== blip.last) { blip.last = b; blip(900, 0.015); } });
