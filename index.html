@@ -122,7 +122,8 @@ button{cursor:pointer}
   #mapwrap{position:absolute;inset:0}
   #panel{position:absolute;left:0;right:0;bottom:0;max-height:72%;border-right:0;border-top:1px solid var(--rule);border-radius:16px 16px 0 0;
     transform:translateY(calc(100% - 150px));transition:transform .28s ease;padding-bottom:env(safe-area-inset-bottom,0px);overflow:hidden}
-  #panel.open{transform:none;overflow-y:auto}
+  #panel.open{transform:none;overflow-y:auto;overscroll-behavior:contain}
+  #panel{max-height:calc(100% - 56px)} #grip{order:-3;height:28px} .sign{order:-2} #card{order:-1}
   #grip{display:block;border:0;background:var(--sign);height:24px;flex:none;position:relative}
   #grip::after{content:"";position:absolute;left:50%;top:10px;width:44px;height:4px;margin-left:-22px;border-radius:2px;background:var(--sign-ink);opacity:.7}
   .sign{border-top:0;box-shadow:none;padding-top:4px;position:static}
@@ -1636,10 +1637,15 @@ $("soundbtn").onclick = () => soundSet(!SOUND.on);
 // Sound is on whenever the page opens. It starts at once if the browser allows it; most browsers only allow sound after the
 // first touch, click or key press, so it otherwise starts the moment that happens. The speaker button shows "on" from the start.
 { let pending = true; $("soundbtn").classList.add("on");
-  const stop = () => { pending = false; removeEventListener("pointerdown", go, true); removeEventListener("keydown", go, true); };
-  const start = () => { if (!pending) return; stop(); if (!SOUND.on) soundSet(true); };
-  const go = e => { if (e.target.closest && e.target.closest("#soundbtn, #ambient")) { stop(); return; } start(); };      // the speaker button and switch handle themselves
-  addEventListener("pointerdown", go, true); addEventListener("keydown", go, true);
+  try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch (e) {}
+  // iPhones mute web audio when the ringer switch is on silent, unless a media element is playing; a silent looping clip keeps it audible
+  const keep = () => { try { if (keep.a) return; const a = keep.a = new Audio("data:audio/wav;base64,UklGRsQPAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YaAPAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA"); a.loop = true; a.setAttribute("playsinline", ""); a.play().catch(() => { keep.a = null; }); } catch (e) {} };
+  const evs = ["pointerdown", "touchend", "click", "keydown"];
+  const stop = () => { pending = false; evs.forEach(k => removeEventListener(k, go, true)); };
+  const start = () => { if (!pending) return; keep(); if (!SOUND.on) soundSet(true); else if (SOUND.ctx && SOUND.ctx.state !== "running") SOUND.ctx.resume();
+    if (SOUND.ctx && SOUND.ctx.state === "running") stop(); else if (SOUND.ctx) SOUND.ctx.resume().then(() => { if (SOUND.ctx.state === "running") stop(); }).catch(() => {}); };      // keep trying on each touch until the phone lets it play
+  const go = e => { if (e.target.closest && e.target.closest("#soundbtn, #ambient")) { keep(); if (SOUND.ctx && SOUND.ctx.state !== "running") SOUND.ctx.resume(); stop(); return; } start(); };      // the speaker button and switch handle themselves
+  evs.forEach(k => addEventListener(k, go, true));
   try { SOUND.ctx = new (window.AudioContext || window.webkitAudioContext)(); if (SOUND.ctx.state === "running") start(); else SOUND.ctx.resume().then(() => { if (SOUND.ctx.state === "running") start(); }).catch(() => {}); } catch (e) {} }
 document.addEventListener("visibilitychange", () => { if (!SOUND.ctx) return; if (document.hidden) SOUND.ctx.suspend(); else if (SOUND.on) SOUND.ctx.resume(); });
 
@@ -1835,7 +1841,7 @@ attachAuto($("q"), $("q-list"), s => { $("q").value = s.name; selectStation(s.i,
    7. STATION DETAILS CARD
    ===================================================================== */
 function selectStation(i, fly) {
-  selected = i; const s = ST[i]; $("card").hidden = false; if (!matchMedia("(max-width:760px)").matches) panel.classList.add("open");
+  selected = i; const s = ST[i]; $("card").hidden = false; if (!matchMedia("(max-width:760px)").matches) panel.classList.add("open"); else panel.scrollTop = 0;
   $("card-name").textContent = s.name; $("card-where").textContent = BORO[s.boro] + " · " + (STRUCT[s.st] || s.st);
   const cl = $("card-lines"); cl.textContent = ""; s.lines.forEach(l => cl.appendChild(bullet(l)));
   const x = $("card-xfer"); x.textContent = "";
@@ -1957,13 +1963,29 @@ $("collapse").onclick = () => setMenu(false); $("menu-tab").onclick = () => setM
 addEventListener("keydown", e => { if (e.target.tagName !== "INPUT" && e.key.toLowerCase() === "m" && !e.ctrlKey && !e.metaKey) setMenu(panel.classList.contains("shut")); });
 // Optional sound: a soft blip on click and a quieter tick on hover, made with the browser's own tone generator.
 let audio = null;
-function blip(freq, vol) { if (!$("sfx").checked) return; vol *= 0.6 * soundLevel() / 0.036; if (vol < 0.0002) return; try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); const o = audio.createOscillator(), g = audio.createGain(), now = audio.currentTime;
+function blip(freq, vol) { if (!$("sfx").checked) return; vol *= 0.6 * soundLevel() / 0.036; if (vol < 0.0002) return; try { audio = SOUND.ctx || audio || new (window.AudioContext || window.webkitAudioContext)(); const o = audio.createOscillator(), g = audio.createGain(), now = audio.currentTime;
     o.type = "triangle"; o.frequency.setValueAtTime(freq, now); o.frequency.exponentialRampToValueAtTime(freq * 1.5, now + 0.07); g.gain.setValueAtTime(vol, now); g.gain.exponentialRampToValueAtTime(0.0001, now + 0.12); o.connect(g).connect(audio.destination); o.start(now); o.stop(now + 0.13); } catch (e) {} }
 document.addEventListener("click", e => { if (e.target.closest("button, .switch, .ac li, .sec > h2")) blip(520, 0.05); });
 document.addEventListener("pointerover", e => { const b = e.target.closest("button, .ac li"); if (b && b !== blip.last) { blip.last = b; blip(900, 0.015); } });
 // Click a section title to fold or unfold it.
 document.querySelectorAll(".sec > h2").forEach(h => { h.onclick = () => h.parentElement.classList.toggle("folded"); });
-$("grip").onclick = () => { panel.classList.toggle("open"); setTimeout(touch, 300); };
+$("grip").onclick = () => { if (Date.now() - (panel.dragged || 0) < 400) return; panel.classList.toggle("open"); setTimeout(touch, 300); };
+// On a phone, drag the menu sheet up or down with a finger. When it is open and scrolled to its top, pulling down closes it;
+// otherwise a swipe inside it scrolls the content as usual.
+{ const mq = matchMedia("(max-width:760px)"), PEEK = 150; let y0 = 0, t0 = 0, dy = 0, wasOpen = false, decided = false, dragging = false;
+  const room = () => Math.max(0, panel.offsetHeight - PEEK);
+  panel.addEventListener("touchstart", e => { if (!mq.matches || e.touches.length > 1) { decided = true; dragging = false; return; } y0 = e.touches[0].clientY; t0 = performance.now(); dy = 0; wasOpen = panel.classList.contains("open"); decided = false; dragging = false; }, { passive: true });
+  panel.addEventListener("touchmove", e => { if (!mq.matches) return; dy = e.touches[0].clientY - y0;
+    if (!decided) { if (Math.abs(dy) < 8) return; decided = true;
+      if (e.target.closest(".ac, input[type=range]")) return;
+      dragging = !wasOpen || (dy > 0 && panel.scrollTop <= 0) || !!e.target.closest("#grip, .sign");
+      if (dragging) panel.style.transition = "none"; }
+    if (!dragging) return; e.preventDefault();
+    const off = Math.max(0, Math.min(room(), (wasOpen ? 0 : room()) + dy)); panel.style.transform = "translateY(" + off + "px)"; }, { passive: false });
+  const end = () => { if (!dragging) return; dragging = false; panel.dragged = Date.now(); const v = dy / Math.max(1, performance.now() - t0);
+    const open = wasOpen ? !(dy > 90 || v > 0.5) : (dy < -40 || v < -0.35);
+    panel.style.transition = ""; panel.style.transform = ""; panel.classList.toggle("open", open); if (!open) panel.scrollTop = 0; setTimeout(touch, 300); };
+  panel.addEventListener("touchend", end); panel.addEventListener("touchcancel", end); }
 
 setHour(21); try { if (localStorage.getItem("subway-menu") === "0") setMenu(false); } catch (e) {}
 resize(); resetView(false);
